@@ -1,0 +1,32 @@
+# ROS/colcon generated folders
+build/
+install/
+log/
+
+# Python generated files
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+
+# Editor files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+
+# Large recorded data
+*.db3
+*.mcap
+*.bag
+rosbag2_*/
+
+# Temporary files
+*.tmp
+*.swp
+

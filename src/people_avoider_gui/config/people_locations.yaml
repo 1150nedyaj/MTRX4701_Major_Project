@@ -1,0 +1,8 @@
+people:
+  - name: person_1
+    left_ankle: [1.0, 0.20]
+    right_ankle: [1.0, -0.20]
+
+  - name: person_2
+    left_ankle: [2.0, 1.00]
+    right_ankle: [2.0, 0.65]
