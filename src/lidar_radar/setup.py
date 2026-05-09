@@ -27,7 +27,6 @@ setup(
     },
     entry_points={
     'console_scripts': [
-        'lidar_detector_node = lidar_radar.lidar_detector_node:main',
-    ],
+     ],
     },
 )

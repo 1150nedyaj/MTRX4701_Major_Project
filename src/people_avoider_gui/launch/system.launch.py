@@ -1,8 +1,12 @@
+import os
+
+from ament_index_python.packages import get_package_share_directory
+
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, GroupAction, LogInfo
+from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDescription, LogInfo, SetEnvironmentVariable
 from launch.conditions import IfCondition, UnlessCondition
+from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-from launch_ros.actions import Node
 
 
 def generate_launch_description():
@@ -11,55 +15,39 @@ def generate_launch_description():
     declare_is_real = DeclareLaunchArgument(
         "is_real",
         default_value="false",
-        description="Set true for real robot/live sensors, false for simulation or bag replay.",
+        description="false = launch Gazebo simulation, true = expect real robot or rosbag topics",
+    )
+
+    turtlebot3_gazebo_launch = os.path.join(
+        get_package_share_directory("turtlebot3_gazebo"),
+        "launch",
+        "turtlebot3_world.launch.py",
     )
 
     simulation_group = GroupAction(
         condition=UnlessCondition(is_real),
         actions=[
-            LogInfo(msg="Launching in SIMULATION / BAG mode"),
-
-            # Placeholder for simulation/bag-mode nodes.
-            # Later this can include Gazebo, RViz, bag replay, or fake people.
+            LogInfo(msg="Launching TurtleBot3 Gazebo simulation"),
+            SetEnvironmentVariable(name="TURTLEBOT3_MODEL", value="burger"),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(turtlebot3_gazebo_launch)
+            ),
         ],
     )
 
-    real_group = GroupAction(
+    real_or_bag_group = GroupAction(
         condition=IfCondition(is_real),
         actions=[
-            LogInfo(msg="Launching in REAL ROBOT mode"),
-
-            # Placeholder for real-robot nodes.
-            # Later this can include real mmWave driver, real sensor setup, etc.
+            LogInfo(
+                msg=(
+                    "REAL/BAG mode selected. "
+                )
+            ),
         ],
-    )
-
-    lidar_node = Node(
-        package="lidar_radar",
-        executable="lidar_detector_node",
-        name="lidar_detector",
-        output="screen",
-    )
-
-    mmwave_node = Node(
-        package="mmwave_radar",
-        executable="mmwave_node",
-        name="mmwave_radar",
-        output="screen",
-    )
-
-    movement_node = Node(
-        package="robot_movement",
-        executable="movement_node",
-        name="robot_movement",
-        output="screen",
     )
 
     return LaunchDescription([
         declare_is_real,
         simulation_group,
-        real_group,
-        lidar_node,
-        mmwave_node,
-        movement_node,
+        real_or_bag_group,
     ])

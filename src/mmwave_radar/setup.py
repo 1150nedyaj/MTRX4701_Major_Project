@@ -27,7 +27,6 @@ setup(
     },
     entry_points={
     'console_scripts': [
-        'mmwave_node = mmwave_radar.mmwave_node:main',
     ],
     },
 )

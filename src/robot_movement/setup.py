@@ -27,8 +27,6 @@ setup(
     },
     entry_points={
         'console_scripts': [
-            'movement_node = robot_movement.movement_node:main',
-            'odom_to_twist_republisher = robot_movement.odom_to_twist_republisher:main',
         ],
     },
 )
