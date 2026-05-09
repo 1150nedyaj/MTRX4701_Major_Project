@@ -15,6 +15,9 @@ class RadarFrame:
     distance: int
     gate_energies: tuple
 
+    def __str__(self):
+        return f"Distance: {self.distance}, Gates: {self.gate_energies}"
+
 class RadarModuleHandler(object):
     def __init__(self, node: Node, interface: str):
         self._node = node
@@ -38,7 +41,7 @@ class RadarModuleHandler(object):
 
         ## Setup port and bringup radar
         self.serial_port = Serial(self._interface, 115200, timeout=1)
-        startup_hex  = "FDFCFBFA0800120000006400000004030201"   # NORMAL MODE
+        startup_hex  = "FDFCFBFA0800120000000400000004030201"   # Report MODE
         hex_bytes = binascii.unhexlify(startup_hex)
         self.serial_port.write(hex_bytes)
     
@@ -102,49 +105,24 @@ class RadarModuleHandler(object):
                 continue
 
             del buf[:self.frame_len]
-            yield frame
+            return frame
 
 
     def read_radar_data(self):
         with self._Lock:
+                # populate buffer
                 n = self.serial_port.in_waiting
                 if n:
                     self._buf.extend(self.serial_port.read(n))
-                
+
                 # Pull all the complete frames from the buffer, keeping the last one
-                lastest = None
-                for frame in self._find_frames(self._buf):
-                    latest = frame
+                latest = self._find_frames(self._buf)
+                if latest == None:
+                    self._node.get_logger().warning("Failed to get frame!")
 
+                return latest
 
-                # self.serial_port.reset_input_buffer()
-
-                # # startup_hex  = "FDFCFBFA0800120000006400000004030201"
-                # # hex_bytes = binascii.unhexlify(startup_hex)
-                # # self.serial_port.write(hex_bytes)
-                # time.sleep(0.1)
-                # message_str = self.serial_port.readline().decode('utf-8', errors='ignore').strip()
-
-                # first_attempt = self.millis()
-                # success = False
-                # output = -1
-
-                # while not success:
-                #     print(f"Message : [{message_str}]")
-
-                #     if len(message_str.split(" ")) == 2:
-                #         # print(message_str.split(" "))
-                #         output = int(message_str.split(" ")[1])
-                #         success = True
-                #     else:
-                        
-                #         message_str = self.serial_port.readline().decode('utf-8', errors='ignore').strip()
-                #         print('new message -> ', message_str," ##  output -> ", int(message_str.split(" ")[1]))
-
-                #     if self.millis() - first_attempt > self.serial_timeout:
-                #         break
             
-            return output
             
             
 

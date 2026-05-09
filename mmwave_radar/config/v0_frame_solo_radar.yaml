@@ -1,0 +1,4 @@
+launch_settings:
+  radar_modules:
+    - identifier: 99
+      interface: /dev/ttyAMA0
