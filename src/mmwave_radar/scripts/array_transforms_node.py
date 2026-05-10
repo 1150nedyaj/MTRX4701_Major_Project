@@ -4,6 +4,7 @@ import math
 import sys
 import os
 import yaml
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
@@ -91,10 +92,12 @@ class RadarArrayStaticFramePublisher(Node):
 
 def main():
     try:
-        if len(sys.argv) != 2:
-            print('Invalid number of parameters. Usage: \n'
-                        '$ ros2 run mmwave_radar arrray_transforms_node'
-                        '<path-to-array-config-file>')
+        print(sys.argv)
+
+        if sys.argv[1].split('.')[-1] != 'yaml':
+            print('Invalid config file type (must be .yaml), Usage: \n'
+                        '$ ros2 run mmwave_radar arrray_transforms_node '
+                        '<path-to-yaml-array-config-file>')
             sys.exit(1)
 
         supplied_config_path = sys.argv[1]
@@ -104,7 +107,7 @@ def main():
 
         # pass parameters and initialize node
         rclpy.init()
-        node = RadarArrayStaticFramePublisher(sys.argv)
+        node = RadarArrayStaticFramePublisher(supplied_config_path)
         rclpy.spin(node)
 
     except (KeyboardInterrupt, ExternalShutdownException):
