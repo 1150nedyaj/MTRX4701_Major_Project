@@ -77,8 +77,8 @@ class RadarArrayStaticFramePublisher(Node):
         t.child_frame_id = transformation['name']
 
         t.transform.translation.x = float(transformation['t_x'])
-        t.transform.translation.y = float(transformation['t_x'])
-        t.transform.translation.z = float(transformation['t_x'])
+        t.transform.translation.y = float(transformation['t_y'])
+        t.transform.translation.z = float(transformation['t_z'])
         quat = quaternion_from_euler(
             float(transformation['roll']), float(transformation['pitch']), float(transformation['yaw']))
         t.transform.rotation.x = quat[0]

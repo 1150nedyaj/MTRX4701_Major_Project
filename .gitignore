@@ -3,6 +3,9 @@ build/
 install/
 log/
 
+# DDS XML files
+*.xml
+
 # Python generated files
 __pycache__/
 *.pyc
