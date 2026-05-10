@@ -6,7 +6,8 @@ from rclpy.node import Node
 from std_msgs.msg import Header
 from radar_messages.msg import StampedReport
 
-from mmwave_radar.radar_module_handler import RadarModuleHandler, RadarFrame
+from mmwave_radar.radar_module_handler import RadarModuleHandler
+from mmwave_radar.types import RadarFrame
 
 
 class RadarModuleNode(Node):

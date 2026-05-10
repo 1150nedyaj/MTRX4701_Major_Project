@@ -9,14 +9,7 @@ from dataclasses import dataclass
 import rclpy
 from rclpy.node import Node
 
-@dataclass
-class RadarFrame:
-    present: bool
-    distance: int
-    gate_energies: tuple
-
-    def __str__(self):
-        return f"Distance: {self.distance}, Gates: {self.gate_energies}"
+from mmwave_radar.types import RadarFrame
 
 class RadarModuleHandler(object):
     def __init__(self, node: Node, interface: str):
