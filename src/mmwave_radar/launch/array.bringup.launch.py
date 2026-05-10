@@ -17,6 +17,8 @@ def setup_routine(context):
     ## Get config data
     parameter_file = LaunchConfiguration("array_config_file").perform(context)
 
+    print(f"\t\t\t### Launching Array with {parameter_file} config ###")
+
     config_path = os.path.join(
         get_package_share_directory('mmwave_radar'),
         'config',
