@@ -34,6 +34,7 @@ class RadarModuleHandler(object):
 
         ## Check interface is good
         if not self._serial_interface_up(interface):
+            self._node.get_logger().error(f"Can't find {interface}!")
             raise RuntimeError(f"Interface {interface} is not up.")
         else:
             self._node.get_logger().info(f"Interface {interface} is up!")
@@ -56,9 +57,10 @@ class RadarModuleHandler(object):
         if interface in port_names:
             return True
         else:
-            print("Availiable Interfaces... ")
+            self._node.get_logger().info("Availiable Interfaces... ")
+
             for i in port_names:
-                print("\t-> ", i)
+                self._node.get_logger().info(f"\t-> {i}")
         return False
     
     def _parse_frame(self, payload: bytes) -> RadarFrame:

@@ -11,6 +11,7 @@ find_package(ament_cmake_python REQUIRED)
 ament_python_install_package(${PROJECT_NAME} PACKAGE_DIR src/${PROJECT_NAME})
  
 install(PROGRAMS
+  scripts/array_transforms_node.py
   scripts/radar_module_node.py
   DESTINATION lib/${PROJECT_NAME}
 )

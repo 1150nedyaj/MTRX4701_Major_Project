@@ -23,9 +23,6 @@ class RadarModuleNode(Node):
         assert self.serial_interface is not None
         assert len(self.serial_interface) > 0
 
-        # TODO: Frame setup
-        # self.declare_parameter('frame', rclpy.Parameter.Type.STRING)
-        # self.node_id = self.get_parameter('frame').get_parameter_value().integer_value
 
         self.radar_handler = RadarModuleHandler(self, self.serial_interface)
 
@@ -45,7 +42,7 @@ class RadarModuleNode(Node):
         # header contents
         report_msg.header = Header()
         report_msg.header.stamp = self.get_clock().now().to_msg()
-        report_msg.header.frame_id = 'odom'     # change 
+        report_msg.header.frame_id = f'radar{self.node_id}'
 
         # report data
         report_msg.distance = float(report_data.distance if report_data.distance is not None else 0.0)
