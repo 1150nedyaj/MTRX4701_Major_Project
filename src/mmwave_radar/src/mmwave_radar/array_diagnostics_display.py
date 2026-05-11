@@ -12,21 +12,29 @@ class ArrayDiagnosticsDisplay(object):
 
         self.fig, self.axs = plt.subplots(self.radar_count, 1,
                                           figsize=(10,10),
-                                          facecolor='black')
+                                          facecolor='black',
+                                          squeeze=False)
         
     def plot_live_radars(self, radar_msgs):
         assert len(radar_msgs) == self.radar_count
 
         sorted_msgs = sorted(radar_msgs, key=lambda x: x.header.frame_id)
         for i, m in enumerate(sorted_msgs):
+            ignore_before = 2
+            interesting_gates = m.gate_energies[ignore_before:]
+
             title = f"{m.header.frame_id} Gate Intensities"
-            labels = range(1, len(m.gate_energies) + 1)
-            colours = ['tab:cyan'] * len(m.gate_energies)
+            labels = range(ignore_before, len(m.gate_energies))
+            colours = ['tab:cyan'] * len(interesting_gates)
             
-            self._plot_bar(self.axs[i], title, "Gates", "Magnitudes (units)", 
+            # print(f"# values : {len(interesting_gates)}")
+            # print(f"# labels : {len(labels)}")
+            # print(f"# colours : {len(colours)}")
+
+            self._plot_bar(self.axs[i, 0], title, "Gates", "Magnitudes (units)", 
                            labels,
                            colours,
-                           m.gate_energies)
+                           interesting_gates)
             
         plt.tight_layout()
         plt.draw()
