@@ -7,7 +7,7 @@ launch_settings:
       translation_y: 0.075
       translation_z: 0.134
       roll: 0.00
-      pitch: 0.785398
+      pitch: -0.785398
       yaw: 0.00
     - identifier: 1
       interface: /dev/ttyAMA1
@@ -16,7 +16,7 @@ launch_settings:
       translation_y: 0.0
       translation_z: 0.134
       roll: 0.00
-      pitch: 0.785398
+      pitch: -0.785398
       yaw: 0.00
     - identifier: 2
       interface: /dev/ttyAMA2
@@ -25,7 +25,7 @@ launch_settings:
       translation_y: -0.075
       translation_z: 0.134
       roll: 0.00
-      pitch: 0.785398
+      pitch: -0.785398
       yaw: 0.00
 
 
