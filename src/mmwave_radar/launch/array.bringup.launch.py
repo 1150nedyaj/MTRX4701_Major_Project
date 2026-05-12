@@ -15,7 +15,7 @@ def setup_routine(context):
     node_list = []
 
     ## Get config data
-    parameter_file = LaunchConfiguration("array_config_file").perform(context)
+    parameter_file = LaunchConfiguration("config").perform(context)
 
     print(f"\t\t\t### Launching Array with {parameter_file} config ###")
 
@@ -61,7 +61,7 @@ def setup_routine(context):
 
 def generate_launch_description():
     array_config_arg = DeclareLaunchArgument(
-        "array_config_file",
+        "config",
         default_value=default_parameter_file,
         description='Radar semantics, interfaces and physical orientations'
     )
