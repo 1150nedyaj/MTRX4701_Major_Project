@@ -56,7 +56,7 @@ class RadarModuleNode(Node):
         for s in signatures:
             
             self.get_logger().info(f"{s}")
-            self.pub_radar_pose(d)
+            self.pub_radar_pose(s)
 
             detection_msg = RadarDetection()
 
