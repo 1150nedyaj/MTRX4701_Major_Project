@@ -62,7 +62,7 @@ class RadarModuleNode(Node):
 
             detection_msg.x = float(s.x)
             detection_msg.y = float(s.y)
-            detection_msg.speed = int(s.speed)
+            detection_msg.speed = float(s.speed)
             report_msg.detections.append(detection_msg)
 
 
