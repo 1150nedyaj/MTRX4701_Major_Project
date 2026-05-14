@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
@@ -35,7 +36,7 @@ class RadarModuleNode(Node):
 
 
     def pub_radar_detections(self):
-        detections = self.radar_handler.get_targets()
+        signatures = self.radar_handler.get_signatures()
         
         # self.get_logger().info(f"Data -> {report_data}")
         if len(detections) == 0:
@@ -52,46 +53,49 @@ class RadarModuleNode(Node):
         # report data
 
         # X AND Y ARE SWITCHED FOR RADAR
-        for d in detections:
+        for s in signatures:
             
-            if abs(d.angle) > 49:
-                continue
-
-            self.get_logger().info(f"{d}")
+            self.get_logger().info(f"{s}")
             self.pub_radar_pose(d)
 
             detection_msg = RadarDetection()
 
-            detection_msg.x = float(d.y)/1000
-            detection_msg.y = float(d.x)/1000
-            detection_msg.speed = int(d.speed)
+            detection_msg.x = float(s.x)
+            detection_msg.y = float(s.y)
+            detection_msg.speed = int(s.speed)
             report_msg.detections.append(detection_msg)
 
 
         self._radar_report_pub.publish(report_msg)
 
-    def pub_radar_pose(self, d):
+    def pub_radar_pose(self, s):
         # debugf
         pose_msg = PoseWithCovarianceStamped()
 
         pose_msg.header.stamp = self.get_clock().now().to_msg()
         pose_msg.header.frame_id = f'radar{self.node_id}'
 
-        pose_msg.pose.pose.position.x = float(d.y)/1000
-        pose_msg.pose.pose.position.y = float(d.x)/1000
+        pose_msg.pose.pose.position.x = float(s.y)/1000
+        pose_msg.pose.pose.position.y = float(s.x)/1000
         pose_msg.pose.pose.position.z = 0.0
         
         pose_msg.pose.pose.orientation.x = 0.0
         pose_msg.pose.pose.orientation.y = 0.0
         pose_msg.pose.pose.orientation.z = 0.0
-        pose_msg.pose.pose.orientation.w = 1.0
+        pose_msg.pose.pose.orientation.w = 0.0
 
-        covariance = [0.09, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
-                    0.0, 0.09, 0.0, 0.0, 0.0, 0.0,  # y
-                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # z
-                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # roll
-                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # pitch
-                    0.0, 0.0, 0.0, 0.0, 0.0, 0.1]   # yaw
+        covariance = np.block([
+            [s.covariance, np.zeros((2,4))],
+            [np.zeros((4,3)), np.zeros((4,3))]
+        ])
+
+
+        # covariance = [0.09, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
+        #             0.0, 0.09, 0.0, 0.0, 0.0, 0.0,  # y
+        #             0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # z
+        #             0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # roll
+        #             0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # pitch
+        #             0.0, 0.0, 0.0, 0.0, 0.0, 0.1]   # yaw
         pose_msg.pose.covariance = covariance
 
         self._radar_detect_debug_pub.publish(pose_msg)

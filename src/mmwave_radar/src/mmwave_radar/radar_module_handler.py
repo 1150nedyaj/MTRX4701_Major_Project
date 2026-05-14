@@ -10,7 +10,7 @@ import rclpy
 from rclpy.node import Node
 
 from mmwave_radar.rd03d import RD03D
-from mmwave_radar.types import RD03DMessage
+from mmwave_radar.types import RD03DMessage, RadarSignature
 
 
 class RadarModuleHandler(object):
@@ -47,15 +47,24 @@ class RadarModuleHandler(object):
                 self._node.get_logger().info(f"\t-> {i}")
         return False
     
-    def get_targets(self):
+    def get_signatures(self):
         if self.radar.update():
             targets = [self.radar.get_target(n) for n in range(1,4)]
             detections = [t for t in targets if t.detection == True]
         else:
             self._node.get_logger().warning("Radar returned no detections!")
-            detections = []
+            return []
+        
+        signatures = []
+        for d in detections:
+            # was getting false positives at the edges
+            if abs(d.angle) > 49:
+                    continue
+            
+            # all tests passed; bring it through
+            signatures.append(RadarSignature.from_RD03DMessage(d))
 
-        return detections
+        return signatures
 
 
 

@@ -34,13 +34,16 @@ class RadarSignature:
         self.r = math.degrees(math.atan2(self.x, self.y))
         self.theta = abs(math.dist((0,0), (self.x, self.y)))
         
+    def __str__(self):
+        return f"({self.x}, {self.y}) : ({self.r}, {np.degrees(self.theta)}°)"
+
     @property
     def covariance(self):
         r_max = 8
-        sigma_theta_max = 1.0472
+        sigma_theta_max = 1.0472    # --> 60 degrees
 
         r_min = 0.1
-        sigma_theta_min = 0.0349
+        sigma_theta_min = 0.0349    # --> 2 degrees
 
         m = (sigma_theta_max - sigma_theta_min) / (r_max - r_min)
         c = sigma_theta_max - (sigma_theta_max - sigma_theta_min) * (r_max / (r_max - r_min))
@@ -68,8 +71,6 @@ class RadarSignature:
         rd_speed_cm = rd.speed
         return cls(rd_x_mm, rd_y_mm, rd_speed_cm)
 
-    @property
-    def range
 
 class SixteenGateReport:
     gates: list
