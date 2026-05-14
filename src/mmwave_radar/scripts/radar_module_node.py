@@ -39,7 +39,7 @@ class RadarModuleNode(Node):
         signatures = self.radar_handler.get_signatures()
         
         # self.get_logger().info(f"Data -> {report_data}")
-        if len(detections) == 0:
+        if len(signatures) == 0:
             # bail from publish
             return
 
