@@ -4,10 +4,10 @@ import rclpy
 from rclpy.node import Node
 
 from std_msgs.msg import Header
-from radar_messages.msg import StampedReport
+from geometry_msgs.msg import PoseWithCovarianceStamped
+from radar_messages.msg import StampedRadarDetections, RadarDetection
 
 from mmwave_radar.radar_module_handler import RadarModuleHandler
-from mmwave_radar.types import RadarFrame
 
 
 class RadarModuleNode(Node):
@@ -28,17 +28,21 @@ class RadarModuleNode(Node):
         self.radar_handler = RadarModuleHandler(self, self.serial_interface)
 
         self.reading_publish_period = 0.15 # s -> sensor sample freq. is 10Hz
-        self._radar_report_pub = self.create_publisher(StampedReport, "~/report", 1)
-        self._radar_pub_timer = self.create_timer(self.reading_publish_period, self.pub_radar_report)
-    
-    def pub_radar_report(self):
-        report_data = self.radar_handler.read_radar_data()
+        self._radar_report_pub = self.create_publisher(StampedRadarDetections, "~/detections", 1)
+        self._radar_detect_debug_pub = self.create_publisher(PoseWithCovarianceStamped, "~/pose", 5)
+        self._radar_pub_timer = self.create_timer(self.reading_publish_period, self.pub_radar_detections)
+        
+
+
+    def pub_radar_detections(self):
+        detections = self.radar_handler.get_targets()
+        
         # self.get_logger().info(f"Data -> {report_data}")
-        if report_data is None:
+        if len(detections) == 0:
             # bail from publish
             return
 
-        report_msg = StampedReport()
+        report_msg = StampedRadarDetections()
 
         # header contents
         report_msg.header = Header()
@@ -46,11 +50,52 @@ class RadarModuleNode(Node):
         report_msg.header.frame_id = f'radar{self.node_id}'
 
         # report data
-        report_msg.distance = float(report_data.distance if report_data.distance is not None else 0.0)
-        for i, eV in enumerate(report_data.gate_energies):
-            report_msg.gate_energies[i] = int(eV)
+
+        # X AND Y ARE SWITCHED FOR RADAR
+        for d in detections:
+            
+            if abs(d.angle) > 49:
+                continue
+
+            self.get_logger().info(f"{d}")
+            self.pub_radar_pose(d)
+
+            detection_msg = RadarDetection()
+
+            detection_msg.x = float(d.y)/1000
+            detection_msg.y = float(d.x)/1000
+            detection_msg.speed = int(d.speed)
+            report_msg.detections.append(detection_msg)
+
 
         self._radar_report_pub.publish(report_msg)
+
+    def pub_radar_pose(self, d):
+        # debugf
+        pose_msg = PoseWithCovarianceStamped()
+
+        pose_msg.header.stamp = self.get_clock().now().to_msg()
+        pose_msg.header.frame_id = f'radar{self.node_id}'
+
+        pose_msg.pose.pose.position.x = float(d.y)/1000
+        pose_msg.pose.pose.position.y = float(d.x)/1000
+        pose_msg.pose.pose.position.z = 0.0
+        
+        pose_msg.pose.pose.orientation.x = 0.0
+        pose_msg.pose.pose.orientation.y = 0.0
+        pose_msg.pose.pose.orientation.z = 0.0
+        pose_msg.pose.pose.orientation.w = 1.0
+
+        covariance = [0.09, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
+                    0.0, 0.09, 0.0, 0.0, 0.0, 0.0,  # y
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # z
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # roll
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # pitch
+                    0.0, 0.0, 0.0, 0.0, 0.0, 0.1]   # yaw
+        pose_msg.pose.covariance = covariance
+
+        self._radar_detect_debug_pub.publish(pose_msg)
+
 
 
 

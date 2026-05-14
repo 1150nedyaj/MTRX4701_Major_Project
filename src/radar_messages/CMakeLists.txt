@@ -11,6 +11,8 @@ find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
+  "msg/StampedRadarDetections.msg"
+  "msg/RadarDetection.msg"
   "msg/StampedDistance.msg"
   "msg/StampedReport.msg"
   DEPENDENCIES geometry_msgs std_msgs
