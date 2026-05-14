@@ -47,7 +47,7 @@ class RD03D:
             if x == 0.0 and y == 0.0 and speed == 0:
                 detection = False
 
-            targets.append(RD03DTarget(x, y, speed, pixel_dist, detection))
+            targets.append(RD03DMessage(x, y, speed, pixel_dist, detection))
         
         return targets
     
