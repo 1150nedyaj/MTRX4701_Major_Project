@@ -56,7 +56,9 @@ class ArrayDiagnosticsNode(Node):
         self.get_logger().info(
             f"Synced bundle of {len(reports)} reports from: {frames}"
         )
-        self.plotter.plot_live_radars(reports)
+
+        t = self.get_clock().now().nanoseconds
+        self.plotter.routine(reports, t)
 
 
 
