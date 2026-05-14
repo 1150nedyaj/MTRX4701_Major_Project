@@ -32,10 +32,10 @@ class RadarSignature:
         self.speed = float(rd_speed_cm)/100.0
 
         self.r = abs(math.dist((0,0), (self.x, self.y)))
-        self.theta = math.degrees(math.atan2(self.x, self.y))
+        self.theta = math.atan2(self.x, self.y)
         
     def __str__(self):
-        return f"({self.x}, {self.y}) : ({self.r}, {np.degrees(self.theta)}°)"
+        return f"({self.x}, {self.y}) : ({self.r}, {np.degrees(self.theta):.2f}°)"
 
     @property
     def covariance(self):
