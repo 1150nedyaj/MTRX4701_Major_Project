@@ -75,8 +75,8 @@ class RadarModuleNode(Node):
         pose_msg.header.stamp = self.get_clock().now().to_msg()
         pose_msg.header.frame_id = f'radar{self.node_id}'
 
-        pose_msg.pose.pose.position.x = float(s.y)
-        pose_msg.pose.pose.position.y = float(s.x)
+        pose_msg.pose.pose.position.x = float(s.x)
+        pose_msg.pose.pose.position.y = float(s.y)
         pose_msg.pose.pose.position.z = 0.0
         
         pose_msg.pose.pose.orientation.x = 0.0
