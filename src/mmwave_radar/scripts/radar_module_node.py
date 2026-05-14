@@ -82,21 +82,15 @@ class RadarModuleNode(Node):
         pose_msg.pose.pose.orientation.x = 0.0
         pose_msg.pose.pose.orientation.y = 0.0
         pose_msg.pose.pose.orientation.z = 0.0
-        pose_msg.pose.pose.orientation.w = 0.0
+        pose_msg.pose.pose.orientation.w = 1.0
 
+        covariance = np.zeros((6,6))
+        covariance[0:2, 0:2] = s.covariance
         covariance = np.block([
             [s.covariance, np.zeros((2,4))],
             [np.zeros((4,3)), np.zeros((4,3))]
         ])
-
-
-        # covariance = [0.09, 0.0, 0.0, 0.0, 0.0, 0.0,  # x
-        #             0.0, 0.09, 0.0, 0.0, 0.0, 0.0,  # y
-        #             0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # z
-        #             0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # roll
-        #             0.0, 0.0, 0.0, 0.0, 0.0, 0.0,   # pitch
-        #             0.0, 0.0, 0.0, 0.0, 0.0, 0.1]   # yaw
-        pose_msg.pose.covariance = covariance
+        pose_msg.pose.covariance = covariance.flatten().tolist()
 
         self._radar_detect_debug_pub.publish(pose_msg)
 

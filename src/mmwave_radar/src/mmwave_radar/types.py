@@ -31,8 +31,8 @@ class RadarSignature:
         self.y = float(rd_x_mm)/1000.0
         self.speed = float(rd_speed_cm)/100.0
 
-        self.r = math.degrees(math.atan2(self.x, self.y))
-        self.theta = abs(math.dist((0,0), (self.x, self.y)))
+        self.r = abs(math.dist((0,0), (self.x, self.y)))
+        self.theta = math.degrees(math.atan2(self.x, self.y))
         
     def __str__(self):
         return f"({self.x}, {self.y}) : ({self.r}, {np.degrees(self.theta)}°)"
