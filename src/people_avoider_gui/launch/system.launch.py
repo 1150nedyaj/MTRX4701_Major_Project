@@ -7,7 +7,7 @@ from launch.actions import DeclareLaunchArgument, GroupAction, IncludeLaunchDesc
 from launch.conditions import IfCondition, UnlessCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-
+from launch_ros.actions import Node
 
 def generate_launch_description():
     is_real = LaunchConfiguration("is_real")
@@ -46,8 +46,16 @@ def generate_launch_description():
         ],
     )
 
+    people_detect_node = Node(
+        package="lidar_radar",
+        executable="people_detect",
+        name="people_detect",
+        output="screen",
+    )
+
     return LaunchDescription([
         declare_is_real,
         simulation_group,
         real_or_bag_group,
+        people_detect_node,
     ])

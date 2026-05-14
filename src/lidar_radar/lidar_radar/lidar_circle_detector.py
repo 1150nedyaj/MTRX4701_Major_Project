@@ -61,12 +61,12 @@ def extract_circular_objects(
     scan_points,
     distance_threshold=0.05,
     min_points=4,
-    max_radius=0.09,
-    min_radius=0.05,
-    max_mse=1.0e-4,
+    max_radius=0.10,
+    min_radius=0.03,
+    max_mse=3e-4,
     max_aspect_ratio=None,
     min_arc_angle=np.radians(60),
-    min_center_range=None,
+    min_center_range=0.1,
     polar=False,
 ):
     """

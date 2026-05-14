@@ -26,7 +26,7 @@ setup(
         ],
     },
     entry_points={
-    'console_scripts': [
+    'console_scripts': ['people_detect = lidar_radar.people_detect:main',
      ],
     },
 )

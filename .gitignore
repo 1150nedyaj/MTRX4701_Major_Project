@@ -3,6 +3,10 @@ build/
 install/
 log/
 
+# Ros bags
+one_person_may_5/
+two_people_may_5/
+
 # Python generated files
 __pycache__/
 *.pyc
