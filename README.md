@@ -80,4 +80,5 @@ launch_settings:
 ![Preview](uart_breakout_board/UART_Expander_Preview.png)
 This Pi 5 hat was built improve quality of life while using the mmWave Radar modules. Aside from maintaining the functionality of the supplied WiFi board, it breaks out all 5 of the UART interfaces available through the Pi's GPIO pins. Each interface includes a led on the transmit line for debugging. This doesn't appear to impact communication with the Pi, though the led's can be left disconnected if they start to cause issues.\
 The Gerber file and Schematic for the board can be found in the uart_breakout_board folder.\
-**NOTE**: The WiFi boards that come with the turtlebots have their status led hooked up to pin 16. This board uses pin 13 due to a mix-up during the design.
+**NOTE**: The WiFi boards that come with the turtlebots have their status led hooked up to pin 16. This board uses pin 13 due to a mix-up during the design.\
+**NOTE**: The current version provides the UART modules with 3.3v for power.
