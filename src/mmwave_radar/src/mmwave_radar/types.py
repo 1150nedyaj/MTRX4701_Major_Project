@@ -43,7 +43,7 @@ class RadarSignature:
         sigma_theta_max = 1.0472    # --> 60 degrees
 
         r_min = 0.1
-        sigma_theta_min = 0.0349    # --> 2 degrees
+        sigma_theta_min = 0.1745    # --> 10 degrees
 
         m = (sigma_theta_max - sigma_theta_min) / (r_max - r_min)
         c = sigma_theta_max - (sigma_theta_max - sigma_theta_min) * (r_max / (r_max - r_min))

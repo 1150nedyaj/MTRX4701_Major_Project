@@ -30,7 +30,7 @@ class RadarModuleNode(Node):
 
         self.reading_publish_period = 0.15 # s -> sensor sample freq. is 10Hz
         self._radar_report_pub = self.create_publisher(StampedRadarDetections, "~/detections", 1)
-        self._radar_detect_debug_pub = self.create_publisher(PoseWithCovarianceStamped, "~/pose", 5)
+        self._radar_detect_debug_pub = self.create_publisher(PoseWithCovarianceStamped, "~/pose", 20)
         self._radar_pub_timer = self.create_timer(self.reading_publish_period, self.pub_radar_detections)
         
 
