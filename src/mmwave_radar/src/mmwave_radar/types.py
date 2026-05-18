@@ -52,13 +52,13 @@ class RadarSignature:
         sigma_theta = m*self.r + c
 
         P_polar= np.array([
-            [sigma_theta**2,0],
-            [0,sigma_r**2]
+            [sigma_r**2,0],
+            [0,sigma_theta**2]
         ])
 
         J = np.array([
-            [np.sin(self.theta), np.cos(self.theta) * self.r],
-            [np.cos(self.theta), np.sin(self.theta) * -self.r]
+            [np.cos(self.theta), np.sin(self.theta) * -self.r],
+            [np.sin(self.theta), np.cos(self.theta) * self.r]
         ])
 
         P_xy = J @ P_polar @ J.T

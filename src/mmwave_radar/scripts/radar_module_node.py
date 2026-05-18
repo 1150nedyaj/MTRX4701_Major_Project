@@ -51,8 +51,6 @@ class RadarModuleNode(Node):
         report_msg.header.frame_id = f'radar{self.node_id}'
 
         # report data
-
-        # X AND Y ARE SWITCHED FOR RADAR
         for s in signatures:
             
             self.get_logger().info(f"{s}")
@@ -60,9 +58,14 @@ class RadarModuleNode(Node):
 
             detection_msg = RadarDetection()
 
-            detection_msg.x = float(s.x)
-            detection_msg.y = float(s.y)
+            detection_msg.position.x = float(s.x)
+            detection_msg.position.y = float(s.y)
+            detection_msg.position.z = 0.0
+
             detection_msg.speed = float(s.speed)
+
+            detection_msg.covariance = s.covariance.flatten().tolist()
+
             report_msg.detections.append(detection_msg)
 
 
