@@ -9,7 +9,7 @@ from launch_ros.actions import Node
 from ament_index_python.packages import get_package_share_directory
 from launch_ros.parameter_descriptions import ParameterValue
 
-default_parameter_file = 'v0_frame_solo_radar.yaml'
+default_parameter_file = 'v1_frame_solo_radar.yaml'
 
 def setup_routine(context):
     node_list = []
