@@ -14,41 +14,55 @@ Every time the Array Bringup gets run the config file being used gets printed to
 ```
 ### Launching Array with config v0_frame_custom.yaml ###
 ```
-Each module has it's node within the array's namespace, and the readings get published at a bit under 10Hz. If you were to be running 2 radars (id's 0 and 1) the topics would look like more or less like this.
+Each module has it's node within the array's namespace, and the readings get published at a bit under 10Hz. If you were to be running 1 radar (id 0) the topics would look like more or less like this.
 ```
-/mmWave_array/radar_0/report
-/mmWave_array/radar_1/report
+/mmWave_array/radar_0/detections
+/mmWave_array/radar_0/pose
 ```
 
 ### Radar Message Types
-The mmWave Radar Modules can operate in a few different modes ranging from just giving distance, to the reporting signal return intensities over it's range, to doing signal returns and doppler shifts for measuring position and velocity.\
-Currently it is just doing the signal return report, and publishing this data to the ```StampedReport``` message from ```radar_messages```. The distances for the are broken into ~30cm blocks, and the entire range of the radar is 16 block. The ```StampedReport``` displays the modules estimate of the person's distance in cm, as well as all the intensity values for each block. When being echoed it the message type will look something like this,
+The RD-03D mmWave Radar modules can give range, bearing and speed of up to 3 targets at a time. The ```RadarDetection``` gives each detection in cartesian coordinates relative to the frame of the sensor, as well as providing covariance values on the detection. A list of these get published with a stamp in the ```detections``` topic (see the example output below). Note that the covariance values are (x,y), and have been flattened.\
+As Rviz doesn't know how to display ```RadarDetection```'s, the modules also publish a ```PoseWithCovarianceStamped``` for each detection to help with debugging. The orientation of this message is irrelevant and it doesn't contain the velocity readings for the radar signature.
 ```
 ---
 header:
   stamp:
-    sec: 1778383501
-    nanosec: 265391132
+    sec: 1779089060
+    nanosec: 16750330
   frame_id: radar0
-distance: 122.0
-gate_energies:
-- 25053
-- 28722
-- 1040
-- 41
-- 40
-- 37
-- 74
-- 64
-- 34
-- 36
-- 40
-- 65
-- 53
-- 49
-- 58
-- 40
+detections:
+- position:
+    x: 3.353
+    y: 1.353
+    z: 0.0
+  covariance:
+  - 0.6573811523000166
+  - -1.4060820426178537
+  - -1.4060820426178537
+  - 3.5745477375444676
+  speed: -0.6800000071525574
+- position:
+    x: 0.202
+    y: -0.045
+    z: 0.0
+  covariance:
+  - 0.08581499991197789
+  - -0.018786000395121464
+  - -0.018786000395121464
+  - 0.005671731559676978
+  speed: -0.6800000071525574
+- position:
+    x: 3.947
+    y: 4.239
+    z: 0.0
+  covariance:
+  - 11.636879333365133
+  - -10.751482125216368
+  - -10.75148212521637
+  - 10.100875194203589
+  speed: 0.6800000071525574
 ---
+
 ```
 
 ### Array Config Files
