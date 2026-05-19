@@ -13,6 +13,13 @@ sudo apt update
 sudo apt install ros-jazzy-turtlebot3-msgs
 ``` 
 
+# Running Nav2 w/ StampedTwist Commands
+By default Nav2 will send command velocity messages as ```Twist``` messages, while the turtlebot will only accept ```TwistStamped```. This can be fixed by giving Nav2 Nodes the parameter ```enable_stamped_cmd_vel: True ``` in the Nav2 config file.\
+In this case, its easy just to setup our own config and point Nav2 to it whenever it gets brought up.
+```
+ros2 launch nav2_bringup navigation_launch.py params_file:=<our-custom-params-file>
+```
+
 # Nav2 command and setup for running
 
 ### Time syncing: 
