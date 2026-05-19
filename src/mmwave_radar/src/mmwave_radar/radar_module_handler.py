@@ -47,7 +47,7 @@ class RadarModuleHandler(object):
                 self._node.get_logger().info(f"\t-> {i}")
         return False
     
-    def get_signatures(self):
+    def get_signatures(self, rad_module_pitch):
         if self.radar.update():
             targets = [self.radar.get_target(n) for n in range(1,4)]
             detections = [t for t in targets if t.detection == True]
@@ -62,7 +62,7 @@ class RadarModuleHandler(object):
                     continue
             
             # all tests passed; bring it through
-            signatures.append(RadarSignature.from_RD03DMessage(d))
+            signatures.append(RadarSignature.from_RD03DMessage(d, rad_module_pitch))
 
         return signatures
 

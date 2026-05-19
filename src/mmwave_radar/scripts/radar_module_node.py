@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
+import sys
+import math
 
 import rclpy
 from rclpy.node import Node
@@ -32,8 +34,12 @@ class RadarModuleNode(Node):
         self.module_frame = f'radar{self.node_id}'
         self.radar_handler = RadarModuleHandler(self, self.serial_interface)
 
-        self.tf_buffer = Buffer()
-        self.tf_listener = TransformListener(self.tf_buffer, self)
+        tf_collection_delay = 0.5
+        self.transform_collected = False
+        self.radar_pitch = -1.0
+        self._tf_buffer = Buffer()
+        self._tf_listener = TransformListener(self._tf_buffer, self)
+        self._tf_timer = self.create_timer(tf_collection_delay, self.get_module_pitch)
 
         self.reading_publish_period = 0.15 # s -> sensor sample freq. is 10Hz
         self._radar_report_pub = self.create_publisher(StampedRadarDetections, "~/detections", 1)
@@ -42,9 +48,12 @@ class RadarModuleNode(Node):
         
 
     def pub_radar_detections(self):
-        signatures = self.radar_handler.get_signatures()
+        if self.transform_collected == False:
+            self.get_logger().info(f"No tf for module; waiting...")
+            return
+
+        signatures = self.radar_handler.get_signatures(self.radar_pitch)
         
-        # self.get_logger().info(f"Data -> {report_data}")
         if len(signatures) == 0:
             # bail from publish
             return
@@ -77,18 +86,26 @@ class RadarModuleNode(Node):
 
         self._radar_report_pub.publish(report_msg)
 
-    def get_module_tf(self):
+    def get_module_pitch(self):
         try:
-            t = self.tf_buffer.lookup_transform(
-                self.module_frame,
+            t = self._tf_buffer.lookup_transform(
                 'base_link',
+                self.module_frame,
                 self.get_clock().now())
         except TransformException as ex:
             self.get_logger().error(
                 f'Could not transform {'base_link'} to {self.module_frame}: {ex}')
-            return
+            sys.exit()
         
-        self.get_logger().info(f"t is a {type(t)}")
+        # pull out pitch from quaternion
+        mQ = t.transform.rotation
+        self.radar_pitch = math.asin(2 * (mQ.w * mQ.y - mQ.z * mQ.x))
+        self.get_logger().info(f"Radar has pitch of {round(np.degrees(self.radar_pitch), 4)} degrees.")
+
+        # static tf; only need to run this once
+        self.transform_collected = True
+        self._tf_timer.destroy()
+
 
     def pub_radar_pose(self, s):
         # debugf
@@ -115,8 +132,6 @@ class RadarModuleNode(Node):
         pose_msg.pose.covariance = covariance.flatten().tolist()
 
         self._radar_detect_debug_pub.publish(pose_msg)
-
-
 
 
 def main(args=None) -> None:
