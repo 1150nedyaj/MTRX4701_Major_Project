@@ -4,6 +4,10 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
+
 from std_msgs.msg import Header
 from geometry_msgs.msg import PoseWithCovarianceStamped
 from radar_messages.msg import StampedRadarDetections, RadarDetection
@@ -25,15 +29,17 @@ class RadarModuleNode(Node):
         assert self.serial_interface is not None
         assert len(self.serial_interface) > 0
 
-
+        self.module_frame = f'radar{self.node_id}'
         self.radar_handler = RadarModuleHandler(self, self.serial_interface)
+
+        self.tf_buffer = Buffer()
+        self.tf_listener = TransformListener(self.tf_buffer, self)
 
         self.reading_publish_period = 0.15 # s -> sensor sample freq. is 10Hz
         self._radar_report_pub = self.create_publisher(StampedRadarDetections, "~/detections", 1)
         self._radar_detect_debug_pub = self.create_publisher(PoseWithCovarianceStamped, "~/pose", 20)
         self._radar_pub_timer = self.create_timer(self.reading_publish_period, self.pub_radar_detections)
         
-
 
     def pub_radar_detections(self):
         signatures = self.radar_handler.get_signatures()
@@ -48,7 +54,7 @@ class RadarModuleNode(Node):
         # header contents
         report_msg.header = Header()
         report_msg.header.stamp = self.get_clock().now().to_msg()
-        report_msg.header.frame_id = f'radar{self.node_id}'
+        report_msg.header.frame_id = self.module_frame
 
         # report data
         for s in signatures:
@@ -70,6 +76,19 @@ class RadarModuleNode(Node):
 
 
         self._radar_report_pub.publish(report_msg)
+
+    def get_module_tf(self):
+        try:
+            t = self.tf_buffer.lookup_transform(
+                self.module_frame,
+                'base_link',
+                self.get_clock().now())
+        except TransformException as ex:
+            self.get_logger().error(
+                f'Could not transform {'base_link'} to {self.module_frame}: {ex}')
+            return
+        
+        self.get_logger().info(f"t is a {type(t)}")
 
     def pub_radar_pose(self, s):
         # debugf
