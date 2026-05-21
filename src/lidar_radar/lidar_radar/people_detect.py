@@ -36,6 +36,12 @@ class PeopleDetectNode(Node):
             10,
         )
 
+        self.filtered_scan_pub = self.create_publisher(
+            LaserScan,
+            "/scan_filtered",
+            10
+        )
+
         self.previous_people = []
         self.get_logger().info("people_detect node started")
 
@@ -64,6 +70,52 @@ class PeopleDetectNode(Node):
 
         results = lidar_circle_detector.extract_circular_objects(scan_points)
 
+        # Make a mutable copy of the original ranges tuple so we can edit it
+        filtered_ranges = list(msg.ranges)
+        
+        # 3cm safety buffer to wipe out edge points near the legs
+        padding = 0.03
+
+        # Loop through every laser beam index and its measured distance
+        for i, distance in enumerate(msg.ranges):
+            # Skip points that are already infinite or invalid
+            if not np.isfinite(distance):
+                continue
+
+            # Calculate where this specific laser point sits in 2D Cartesian space
+            angle = msg.angle_min + i * msg.angle_increment
+            x = distance * np.cos(angle)
+            y = distance * np.sin(angle)
+
+            # Compare this laser point against every leg circle found by the library
+            for circle in results:
+                cx, cy = circle.center
+                
+                # Compute straight-line distance from the laser point to the circle center
+                dist_to_center = math.hypot(x - cx, y - cy)
+
+                # If the point falls inside the leg radius (+ padding), erase it!
+                if dist_to_center <= (circle.radius + padding):
+                    filtered_ranges[i] = float('inf') # Set to infinity for Nav2 to ignore
+                    break # Stop checking other circles for this beam and move to next point
+
+        # Re-package everything back into a valid LaserScan message layout
+        filtered_msg = LaserScan()
+        filtered_msg.header = msg.header
+        filtered_msg.angle_min = msg.angle_min
+        filtered_msg.angle_max = msg.angle_max
+        filtered_msg.angle_increment = msg.angle_increment
+        filtered_msg.time_increment = msg.time_increment
+        filtered_msg.scan_time = msg.scan_time
+        filtered_msg.range_min = msg.range_min
+        filtered_msg.range_max = msg.range_max
+        filtered_msg.ranges = filtered_ranges
+        
+        if msg.intensities:
+            filtered_msg.intensities = msg.intensities
+
+        # Publish our human-free scan to the network
+        self.filtered_scan_pub.publish(filtered_msg)
         ankles = []
         for circle in results:
             ankles.append([circle.center[0], circle.center[1]])
