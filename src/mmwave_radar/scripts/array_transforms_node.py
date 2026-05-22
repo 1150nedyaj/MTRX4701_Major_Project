@@ -96,7 +96,7 @@ def main():
 
         if sys.argv[1].split('.')[-1] != 'yaml':
             print('Invalid config file type (must be .yaml), Usage: \n'
-                        '$ ros2 run mmwave_radar arrray_transforms_node '
+                        '$ ros2 run mmwave_radar array_transforms_node '
                         '<path-to-yaml-array-config-file>')
             sys.exit(1)
 
