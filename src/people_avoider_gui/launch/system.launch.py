@@ -53,9 +53,32 @@ def generate_launch_description():
         output="screen",
     )
 
+    sensor_fusion_node = Node(
+        package="sensor_fusion",
+        executable="sensor_fusion",
+        name="sensor_fusion",
+        output="screen",
+        parameters=[{
+            # List every radar detection topic used in your array config.
+            # Add more entries if you have multiple radar modules.
+            "radar_topics": ["/mmWave_array/radar_0/detections"],
+            # A lidar person is confirmed when a radar point is within this radius (metres).
+            "fusion_distance_threshold": 1.0,
+            # Radar readings older than this (seconds) are discarded from the buffer.
+            # Increased from 0.5 s to tolerate short radar dropout gaps.
+            "radar_timeout": 1.5,
+            # A confirmed track is held in the output for this many seconds
+            # after its last radar+lidar confirmation, smoothing out flickering.
+            "hold_time": 1.0,
+            # Common TF frame used for spatial comparison.
+            "target_frame": "base_link",
+        }],
+    )
+
     return LaunchDescription([
         declare_is_real,
         simulation_group,
         real_or_bag_group,
         people_detect_node,
+        sensor_fusion_node,
     ])

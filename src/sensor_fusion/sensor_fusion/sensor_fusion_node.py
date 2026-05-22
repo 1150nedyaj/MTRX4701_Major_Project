@@ -7,21 +7,29 @@ within a configurable spatial and temporal window.  This eliminates false
 positives that arise from circular static objects (traffic cones, poles,
 wheels) which the circle-detector cannot distinguish from legs.
 
+Once a person is confirmed by both sensors they are added to a tracked-people
+buffer.  Subsequent scans keep the track alive as long as a lidar candidate
+remains nearby, even if radar or lidar drops out for a frame or two.  The
+track expires when it has not been refreshed within `hold_time` seconds.
+
 Subscribes
 ----------
-/lidar/circle_candidates  (geometry_msgs/PoseArray)
+/lidar/circle_candidates          (geometry_msgs/PoseArray)
     People positions from the lidar circle-detector, in the scan frame.
-<radar_topic>  (radar_messages/StampedRadarDetections)  [one or more]
+<radar_topic>                     (radar_messages/StampedRadarDetections)
     Raw radar detections, in each module's own TF frame.
-    Default: ["/mmWave_array/radar_0/detections"]
+    Default topic: /mmWave_array/radar_0/detections
     Override via the "radar_topics" parameter (string array).
 
 Publishes
 ---------
-/fusion/people            (geometry_msgs/PoseArray)
-    Subset of lidar detections confirmed by radar, same frame as input.
-/fusion/people_markers    (visualization_msgs/MarkerArray)
-    Green cylinders for confirmed people (RViz visualisation).
+/fusion/people                    (geometry_msgs/PoseArray)
+    Radar-confirmed people (with hold), same frame as lidar input.
+/fusion/people_markers            (visualization_msgs/MarkerArray)
+    Green cylinders for confirmed/held people (RViz).
+/fusion/radar_markers             (visualization_msgs/MarkerArray)
+    Orange spheres showing every buffered radar detection in target_frame
+    (useful for tuning and visualising radar coverage in RViz).
 
 Parameters
 ----------
@@ -29,7 +37,10 @@ radar_topics              string[]  – radar detection topic names
 fusion_distance_threshold double    – max distance (m) for a radar point to
                                       confirm a lidar detection  [default 1.0]
 radar_timeout             double    – keep radar readings for this many seconds
-                                      [default 0.5]
+                                      [default 1.5]
+hold_time                 double    – keep a confirmed track alive for this many
+                                      seconds after its last confirmation
+                                      [default 1.0]
 target_frame              string    – common TF frame for spatial comparison
                                       [default "base_link"]
 """
@@ -42,6 +53,7 @@ from rclpy.node import Node
 from rclpy.time import Time
 
 from geometry_msgs.msg import PoseArray
+from std_msgs.msg import Header
 from visualization_msgs.msg import MarkerArray, Marker
 from tf2_ros import Buffer, TransformListener, TransformException
 
@@ -56,7 +68,8 @@ class SensorFusionNode(Node):
         # --- parameters ---
         self.declare_parameter("radar_topics", ["/mmWave_array/radar_0/detections"])
         self.declare_parameter("fusion_distance_threshold", 1.0)
-        self.declare_parameter("radar_timeout", 0.5)
+        self.declare_parameter("radar_timeout", 1.5)
+        self.declare_parameter("hold_time", 1.0)
         self.declare_parameter("target_frame", "base_link")
 
         radar_topics = (
@@ -72,6 +85,9 @@ class SensorFusionNode(Node):
         self._radar_timeout = (
             self.get_parameter("radar_timeout").get_parameter_value().double_value
         )
+        self._hold_time = (
+            self.get_parameter("hold_time").get_parameter_value().double_value
+        )
         self._target_frame = (
             self.get_parameter("target_frame").get_parameter_value().string_value
         )
@@ -81,8 +97,15 @@ class SensorFusionNode(Node):
         self._tf_listener = TransformListener(self._tf_buffer, self)
 
         # --- radar buffer: deque of (wall_time_sec, [(x, y), ...]) ---
-        # Points are already transformed into _target_frame when stored.
+        # Points are pre-transformed into _target_frame when stored.
         self._radar_buffer: deque = deque()
+
+        # --- tracked people: list of dicts ---
+        # Each entry: {wx, wy, pose, last_confirmed}
+        #   wx/wy          – position in target_frame, kept up to date for matching
+        #   pose           – most recent Pose in the lidar frame, used for output
+        #   last_confirmed – wall time (sec) of the most recent radar confirmation
+        self._tracked_people: list = []
 
         # --- radar subscribers (one per topic) ---
         self._radar_subs = []
@@ -103,10 +126,15 @@ class SensorFusionNode(Node):
         self._marker_pub = self.create_publisher(
             MarkerArray, "/fusion/people_markers", 10
         )
+        self._radar_marker_pub = self.create_publisher(
+            MarkerArray, "/fusion/radar_markers", 10
+        )
 
         self.get_logger().info(
             f"sensor_fusion ready | threshold={self._threshold} m | "
-            f"timeout={self._radar_timeout} s | frame={self._target_frame}"
+            f"radar_timeout={self._radar_timeout} s | "
+            f"hold_time={self._hold_time} s | "
+            f"frame={self._target_frame}"
         )
 
     # ------------------------------------------------------------------
@@ -129,35 +157,32 @@ class SensorFusionNode(Node):
 
         points = []
         for det in msg.detections:
-            x, y = self._apply_transform_2d(det.position.x, det.position.y, tx, ty, yaw)
+            x, y = self._apply_transform_2d(
+                det.position.x, det.position.y, tx, ty, yaw
+            )
             points.append((x, y))
 
         now = self.get_clock().now().nanoseconds * 1e-9
         self._radar_buffer.append((now, points))
-        self._prune_buffer(now)
+        self._prune_radar_buffer(now)
+
+        # Publish orange sphere markers so radar is visible in RViz.
+        self._publish_radar_markers(msg.header)
 
     # ------------------------------------------------------------------
     # Lidar callback
     # ------------------------------------------------------------------
 
     def _lidar_cb(self, msg: PoseArray):
-        """Keep only lidar people that have a nearby radar detection."""
+        """Update tracked people and publish the held output."""
         now = self.get_clock().now().nanoseconds * 1e-9
-        self._prune_buffer(now)
+        self._prune_radar_buffer(now)
 
         # Flatten all buffered radar points into one list.
         radar_points = [pt for _, pts in self._radar_buffer for pt in pts]
 
-        if not radar_points:
-            # No radar data at all – publish nothing so false positives are suppressed.
-            self._publish([], msg)
-            self.get_logger().debug("No recent radar data; suppressing all lidar detections.")
-            return
-
+        # Compute the lidar → target_frame transform once for this scan.
         lidar_frame = msg.header.frame_id
-
-        # Transform lidar poses into target_frame for comparison.
-        # (If already in target_frame the identity transform is returned.)
         if lidar_frame != self._target_frame:
             tf = self._get_transform(lidar_frame, msg.header.stamp)
             if tf is None:
@@ -166,24 +191,61 @@ class SensorFusionNode(Node):
         else:
             tx, ty, yaw = 0.0, 0.0, 0.0
 
-        confirmed = []
+        # --- step 1: find which lidar candidates are radar-confirmed right now ---
+        newly_confirmed = []  # (wx, wy, original_pose)
         for pose in msg.poses:
             wx, wy = self._apply_transform_2d(
                 pose.position.x, pose.position.y, tx, ty, yaw
             )
-            if self._any_radar_nearby(wx, wy, radar_points):
-                confirmed.append(pose)
+            if radar_points and self._any_radar_nearby(wx, wy, radar_points):
+                newly_confirmed.append((wx, wy, pose))
 
-        self._publish(confirmed, msg)
+        # --- step 2: merge confirmations into the tracked-people list ---
+        for wx, wy, pose in newly_confirmed:
+            matched = self._find_tracked(wx, wy)
+            if matched is not None:
+                # Refresh the existing track with the latest position and time.
+                matched["wx"] = wx
+                matched["wy"] = wy
+                matched["pose"] = pose
+                matched["last_confirmed"] = now
+            else:
+                # Brand-new person — open a fresh track.
+                self._tracked_people.append(
+                    {"wx": wx, "wy": wy, "pose": pose, "last_confirmed": now}
+                )
+
+        # --- step 3: expire tracks that have not been confirmed within hold_time ---
+        self._tracked_people = [
+            p for p in self._tracked_people
+            if (now - p["last_confirmed"]) < self._hold_time
+        ]
+
+        # --- step 4: publish all live tracks ---
+        output_poses = [p["pose"] for p in self._tracked_people]
+        self._publish(output_poses, msg)
+
         self.get_logger().debug(
-            f"Fusion: {len(msg.poses)} lidar candidates → {len(confirmed)} confirmed"
+            f"Fusion: {len(msg.poses)} lidar | "
+            f"{len(newly_confirmed)} confirmed now | "
+            f"{len(self._tracked_people)} tracked"
         )
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
 
-    def _prune_buffer(self, now_sec: float):
+    def _find_tracked(self, wx: float, wy: float) -> dict | None:
+        """Return the closest tracked person within threshold, or None."""
+        best, best_dist = None, self._threshold
+        for person in self._tracked_people:
+            d = math.hypot(wx - person["wx"], wy - person["wy"])
+            if d < best_dist:
+                best_dist = d
+                best = person
+        return best
+
+    def _prune_radar_buffer(self, now_sec: float):
         cutoff = now_sec - self._radar_timeout
         while self._radar_buffer and self._radar_buffer[0][0] < cutoff:
             self._radar_buffer.popleft()
@@ -203,7 +265,6 @@ class SensorFusionNode(Node):
         except TransformException:
             pass
         try:
-            # Fall back to latest known transform (handles small timing gaps).
             return self._tf_buffer.lookup_transform(
                 self._target_frame, source_frame, Time()
             )
@@ -228,22 +289,25 @@ class SensorFusionNode(Node):
 
     @staticmethod
     def _apply_transform_2d(x: float, y: float, tx: float, ty: float, yaw: float):
-        """Apply a 2-D rigid transform (rotation then translation)."""
+        """Rotate then translate: body-frame point → world-frame point."""
         wx = math.cos(yaw) * x - math.sin(yaw) * y + tx
         wy = math.sin(yaw) * x + math.cos(yaw) * y + ty
         return wx, wy
 
-    def _publish(self, confirmed_poses: list, source_msg: PoseArray):
+    # ------------------------------------------------------------------
+    # Publishers
+    # ------------------------------------------------------------------
+
+    def _publish(self, poses: list, source_msg: PoseArray):
         out = PoseArray()
         out.header = source_msg.header
-        out.poses = confirmed_poses
+        out.poses = poses
         self._people_pub.publish(out)
-        self._publish_markers(confirmed_poses, source_msg.header)
+        self._publish_people_markers(poses, source_msg.header)
 
-    def _publish_markers(self, poses: list, header):
+    def _publish_people_markers(self, poses: list, header: Header):
         markers = MarkerArray()
 
-        # Clear stale markers from previous cycle.
         clear = Marker()
         clear.header = header
         clear.ns = "fusion_people"
@@ -260,7 +324,7 @@ class SensorFusionNode(Node):
 
             m.pose.position.x = pose.position.x
             m.pose.position.y = pose.position.y
-            m.pose.position.z = 0.5  # visual midpoint at 0.5 m height
+            m.pose.position.z = 0.5
             m.pose.orientation = pose.orientation
 
             m.scale.x = 0.4
@@ -272,11 +336,63 @@ class SensorFusionNode(Node):
             m.color.b = 0.0
             m.color.a = 0.8
 
-            m.lifetime.sec = 1  # auto-expire after 1 s if not refreshed
+            m.lifetime.sec = int(self._hold_time) + 1
 
             markers.markers.append(m)
 
         self._marker_pub.publish(markers)
+
+    def _publish_radar_markers(self, source_header: Header):
+        """Publish all buffered radar points as orange spheres in target_frame."""
+        markers = MarkerArray()
+
+        # Build a header stamped to now in the target frame.
+        header = Header()
+        header.stamp = self.get_clock().now().to_msg()
+        header.frame_id = self._target_frame
+
+        clear = Marker()
+        clear.header = header
+        clear.ns = "radar_detections"
+        clear.action = Marker.DELETEALL
+        markers.markers.append(clear)
+
+        marker_id = 0
+        for _, points in self._radar_buffer:
+            for wx, wy in points:
+                m = Marker()
+                m.header = header
+                m.ns = "radar_detections"
+                m.id = marker_id
+                marker_id += 1
+
+                m.type = Marker.SPHERE
+                m.action = Marker.ADD
+
+                m.pose.position.x = wx
+                m.pose.position.y = wy
+                m.pose.position.z = 0.1  # slightly above ground
+                m.pose.orientation.w = 1.0
+
+                m.scale.x = 0.3
+                m.scale.y = 0.3
+                m.scale.z = 0.3
+
+                # Orange — visually distinct from the green people cylinders.
+                m.color.r = 1.0
+                m.color.g = 0.5
+                m.color.b = 0.0
+                m.color.a = 0.9
+
+                # Auto-expire slightly after the buffer timeout so stale
+                # markers clean themselves up if the node stops publishing.
+                lifetime_sec = self._radar_timeout + 0.5
+                m.lifetime.sec = int(lifetime_sec)
+                m.lifetime.nanosec = int((lifetime_sec % 1) * 1e9)
+
+                markers.markers.append(m)
+
+        self._radar_marker_pub.publish(markers)
 
 
 def main(args=None):
