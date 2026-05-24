@@ -1,3 +1,13 @@
+"""
+
+Author: Core Electronics
+
+This file was taken directly from the Core Electronics Tutorial for setting up and interfacing with the 
+RD03d mmWave radar module.
+
+"""
+
+
 import serial
 import time
 import math
