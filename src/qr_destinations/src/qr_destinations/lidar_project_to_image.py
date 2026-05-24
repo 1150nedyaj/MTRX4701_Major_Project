@@ -2,11 +2,6 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 
-import os
-import json
-from pathlib import Path
-
-
 class LidarProject():
     def __init__(self, img, lidar):
         self.camera_k = np.array([(503.4, 0.0, 319.3),
