@@ -112,7 +112,7 @@ class RadarModuleNode(Node):
         pose_msg = PoseWithCovarianceStamped()
 
         pose_msg.header.stamp = self.get_clock().now().to_msg()
-        pose_msg.header.frame_id = f'radar{self.node_id}'
+        pose_msg.header.frame_id = f'base_link'
 
         pose_msg.pose.pose.position.x = float(s.x)
         pose_msg.pose.pose.position.y = float(s.y)
