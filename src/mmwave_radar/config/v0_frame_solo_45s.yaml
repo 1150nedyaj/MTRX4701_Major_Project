@@ -1,0 +1,11 @@
+launch_settings:
+  radar_modules:
+    - identifier: 0
+      interface: /dev/ttyAMA0
+      parent_frame: base_link
+      translation_x: 0.046
+      translation_y: 0.0
+      translation_z: 0.134
+      roll: 0.00
+      pitch: -0.785398
+      yaw: 0.00
