@@ -34,12 +34,12 @@ class RadarModuleNode(Node):
         self.module_frame = f'radar{self.node_id}'
         self.radar_handler = RadarModuleHandler(self, self.serial_interface)
 
-        tf_collection_delay = 0.5
-        self.transform_collected = False
-        self.radar_pitch = -1.0
-        self._tf_buffer = Buffer()
-        self._tf_listener = TransformListener(self._tf_buffer, self)
-        self._tf_timer = self.create_timer(tf_collection_delay, self.get_module_pitch)
+        # tf_collection_delay = 0.5
+        # self.transform_collected = False
+        # self.radar_pitch = -1.0
+        # self._tf_buffer = Buffer()
+        # self._tf_listener = TransformListener(self._tf_buffer, self)
+        # self._tf_timer = self.create_timer(tf_collection_delay, self.get_module_pitch)
 
         self.reading_publish_period = 0.15 # s -> sensor sample freq. is 10Hz
         self._radar_report_pub = self.create_publisher(StampedRadarDetections, "~/detections", 1)
@@ -48,11 +48,11 @@ class RadarModuleNode(Node):
         
 
     def pub_radar_detections(self):
-        if self.transform_collected == False:
-            self.get_logger().info(f"No tf for module; waiting...")
-            return
+        # if self.transform_collected == False:
+        #     self.get_logger().info(f"No tf for module; waiting...")
+        #     return
 
-        signatures = self.radar_handler.get_signatures(self.radar_pitch)
+        signatures = self.radar_handler.get_signatures()
         
         if len(signatures) == 0:
             # bail from publish
