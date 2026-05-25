@@ -197,8 +197,8 @@ controller_server:
 local_costmap:
   local_costmap:
     ros__parameters:
-      enable_stamped_cmd_vel: True   # use TwistStamped for turtlebot
-  
+      enable_stamped_cmd_vel: True
+
       update_frequency: 5.0
       publish_frequency: 2.0
       global_frame: odom
@@ -208,23 +208,18 @@ local_costmap:
       height: 3
       resolution: 0.05
       robot_radius: 0.22
-      plugins: ["voxel_layer", "inflation_layer"]
-      inflation_layer:
-        plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.70
-      voxel_layer:
-        plugin: "nav2_costmap_2d::VoxelLayer"
+      always_send_full_costmap: True
+
+      # 1. DEFINE THE PIPELINE SEQUENCE (Processed from left to right)
+      plugins: ["wall_obstacle_layer", "wall_inflation_layer", "human_tracker_layer", "human_inflation_layer"]
+
+      # 2. TRACK WALLS AND INFRASTRUCTURE (Using your filtered static scan)
+      wall_obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        publish_voxel_map: True
-        origin_z: 0.0
-        z_resolution: 0.05
-        z_voxels: 16
-        max_obstacle_height: 2.0
-        mark_threshold: 0
         observation_sources: scan
         scan:
-          topic: /human_scan
+          topic: /scan          # Uses the scan with legs stripped out
           max_obstacle_height: 2.0
           clearing: True
           marking: True
@@ -233,10 +228,34 @@ local_costmap:
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.0
-      static_layer:
-        plugin: "nav2_costmap_2d::StaticLayer"
-        map_subscribe_transient_local: True
-      always_send_full_costmap: True
+
+      # Tight safety margin so the robot can fit through doorways cleanly
+      wall_inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.40          # 40 cm buffer for static walls
+
+      # 3. TRACK HUMANS SEPARATELY
+      human_tracker_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: human_scan
+        human_scan:
+          topic: /fusion/human_scan       # Captures your node's human-only output
+          max_obstacle_height: 2.0
+          clearing: True
+          marking: True
+          data_type: "LaserScan"
+          raytrace_max_range: 3.0
+          raytrace_min_range: 0.0
+          obstacle_max_range: 2.5
+          obstacle_min_range: 0.0
+
+      # Massive safety cushion strictly applied around the human data points
+      human_inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 5.0        # Gentle decay so MPPI starts veering away early
+        inflation_radius: 1.20          # 1.2 meter massive buffer around people!
 
 global_costmap:
   global_costmap:

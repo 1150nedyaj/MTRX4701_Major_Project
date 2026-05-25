@@ -114,6 +114,7 @@ class SensorFusionNode(Node):
             MarkerArray, "/fusion/people_markers", 10
         )
 
+        # lidar points of a human
         self._people_scan_pub = self.create_publisher(LaserScan, "fusion/human_scan", 10)
 
         # Initialize tracking cache safely
@@ -249,6 +250,22 @@ class SensorFusionNode(Node):
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _create_empty_scan(self, source_msg: LaserScan) -> LaserScan:
+        """MISSING PIECE 3: Structuring helper to clone the scan metadata layout."""
+        scan = LaserScan()
+        scan.header = source_msg.header
+        scan.angle_min = source_msg.angle_min
+        scan.angle_max = source_msg.angle_max
+        scan.angle_increment = source_msg.angle_increment
+        scan.time_increment = source_msg.time_increment
+        scan.scan_time = source_msg.scan_time
+        scan.range_min = source_msg.range_min
+        scan.range_max = source_msg.range_max
+        scan.ranges = [float('inf')] * len(source_msg.ranges)
+        if source_msg.intensities:
+            scan.intensities = source_msg.intensities
+        return scan
 
     def _prune_buffer(self, now_sec: float):
         cutoff = now_sec - self._radar_timeout
