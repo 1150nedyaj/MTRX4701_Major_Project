@@ -77,12 +77,18 @@ class RadarModuleNode(Node):
         if not self._is_fresh_tf():
             return  
 
-        pts = np.array([[p.x, p.y] for p in pointcloud_msg.points], dtype=float)
-        img = self._bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
-        tf = self.last_tf.transform
+        try:
+            pts = np.array([[p.x, p.y] for p in pointcloud_msg.points], dtype=float)
+            img = self._bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
+            tf = self.last_tf.transform
 
-        self.qr_handler.find_tags(pts, img, tf)
-        pass
+            self.qr_handler.find_tags(pts, img, tf)
+            
+        except Exception as e:
+            self.get_logger().error(f"Callback exception: {e}")
+            import traceback
+            self.get_logger().error(traceback.format_exc())
+
 
     def _is_fresh_tf(self):
         return True     
