@@ -15,6 +15,7 @@ from rclpy.time import Time
 from sensor_msgs.msg import PointCloud, CompressedImage, Image
 from nav_msgs.msg import Odometry
 
+from destination_msgs.msg import DestinationListMsg
 from qr_destinations.destination_handler import DestinationHandler
 
 # from std_msgs.msg import Header
@@ -24,8 +25,6 @@ class RadarModuleNode(Node):
     def __init__(self) -> None:
         super().__init__("destination_advertiser")
 
-        self.qr_handler = DestinationHandler(self)
-    
         self._bridge = CvBridge()
 
         self.tf_collection_started = False
@@ -33,6 +32,8 @@ class RadarModuleNode(Node):
         self.tf_buffer = Buffer()
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.tf_check_timer = self.create_timer(0.05, self.get_map_tf)
+
+        self.destination_pub = self.create_publisher(DestinationListMsg, '~/list', 3)
 
         self.qr_location_subs = [
             Subscriber(self, PointCloud, 'pointcloud2d'),
@@ -46,6 +47,9 @@ class RadarModuleNode(Node):
         )
 
         self.qr_locating_time_sync.registerCallback(self.synced_qr_data_callback)
+
+
+        self.qr_handler = DestinationHandler(self, self.destination_pub)
 
     def get_map_tf(self):
         target = 'odom'

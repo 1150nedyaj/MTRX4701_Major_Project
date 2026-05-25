@@ -12,6 +12,7 @@ ament_python_install_package(${PROJECT_NAME} PACKAGE_DIR src/${PROJECT_NAME})
  
 install(PROGRAMS
   scripts/destination_node.py
+  scripts/debug_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

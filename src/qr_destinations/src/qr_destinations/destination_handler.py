@@ -1,28 +1,32 @@
 import cv2
 import numpy as np
+from math import dist
 import matplotlib.pyplot as plt
 from copy import deepcopy
 
 import qr_destinations.lidar_project_to_image as lpi
 from qr_destinations.types import Destination, TagDetection
+from destination_msgs.msg import DestinationMsg, DestinationListMsg
 
 class DestinationHandler(object):
     def __init__(self, 
                  node,
+                 destination_publiser,
                  aruco_dict=cv2.aruco.DICT_4X4_50):
 
         self._node = node
-
+        self._destinations_publisher = destination_publiser
         self.tracked_destinations = []
 
         # tag stuff
+        self.tag_rad = 0.1              # min space between tags in m
         self._aruco_dict_id = aruco_dict
         self._aruco_dictionary = cv2.aruco.getPredefinedDictionary(aruco_dict)
         self._aruco_params = cv2.aruco.DetectorParameters()
 
         # plotting (scheming even)
-        plt.ion()
-        self._fig, self._ax_map = plt.subplots(1, 1, figsize=(7, 7))
+        # plt.ion()
+        # self._fig, self._ax_map = plt.subplots(1, 1, figsize=(7, 7))
 
     def find_tags(self, lidar_pts, img, tf):
 
@@ -64,22 +68,70 @@ class DestinationHandler(object):
             d.normal_vector = self._build_normal_vector_from_pts(tag_bounded_points)
             detections.append(d)
 
-        # add any previously undetected tags into the tracked list
+        # sorting...
+        updates_made = False
         current_destination_tags = [d.tag_id for d in self.tracked_destinations]
         new_detections = [d for d in detections if d.tag_id not in current_destination_tags]
+        existing_detections = [d for d in detections if d.tag_id in current_destination_tags]
+
+        # add any previously undetected tags into the tracked list
         for d in new_detections:
             mean_map_coords, _, _ = self.Relative2AbsoluteXY(tf, d.centre)
             mean_map_coords =  mean_map_coords.flatten()
             v_normal_from_map = self.rotate_v_to_map_frame(tf, d.normal_vector)
 
+            self._node.get_logger().info(f"detection built from {len(d.bounded_lidar_points)} points...")
+
+            # make sure its not a dodgy reading of the tag
+            is_fp = False
+            for dest in self.tracked_destinations:
+                if dist(dest.tag_centre, mean_map_coords) < self.tag_rad:
+                    is_fp = True
+                    break
+            if is_fp:
+                self._node.get_logger().warn(f"Rejecting dodgy reading of {d.tag_id}")
+                continue
+
             new_destination = Destination(
                 tag_id=d.tag_id,
                 centre=mean_map_coords,
-                v_normal=v_normal_from_map
+                v_normal=v_normal_from_map,
+                pts_used=len(d.bounded_lidar_points)
             )
             self.tracked_destinations.append(deepcopy(new_destination))
+            updates_made = True
 
-        self._update_map_plot(tf) 
+        # update exisitng detection if this observation uses more points
+        for d in existing_detections:
+            current_entry = [tD for tD in self.tracked_destinations if tD.tag_id == d.tag_id][0]
+
+            if current_entry.pts_used >= len(d.bounded_lidar_points):
+                continue
+
+            self._node.get_logger().info(f"detection built from {len(d.bounded_lidar_points)} points...")    
+            
+            mean_map_coords, _, _ = self.Relative2AbsoluteXY(tf, d.centre)
+            mean_map_coords =  mean_map_coords.flatten()
+            v_normal_from_map = self.rotate_v_to_map_frame(tf, d.normal_vector)
+
+            current_entry.tag_centre = mean_map_coords
+            current_entry.wall_normal_vector = v_normal_from_map
+            current_entry.pts_used = len(d.bounded_lidar_points)
+
+            updates_made = True
+
+        if updates_made:
+            self._publish_tracked()
+            # self._update_map_plot(tf) 
+
+    def _publish_tracked(self):
+        dest_list = DestinationListMsg()
+
+        for d in self.tracked_destinations:
+            d_msg = d.to_DestinationMsg()
+            dest_list.destinations.append(d_msg)
+
+        self._destinations_publisher.publish(dest_list)
 
     def _update_map_plot(self, tf):
         self._ax_map.cla()
@@ -189,6 +241,8 @@ class DestinationHandler(object):
             v_normal = -v_normal
 
         return v_normal
+
+
 
     @staticmethod
     def yaw_from_quaternion(q) -> float:
