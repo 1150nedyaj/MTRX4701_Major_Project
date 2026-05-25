@@ -52,7 +52,7 @@ class RadarModuleNode(Node):
         self.qr_handler = DestinationHandler(self, self.destination_pub)
 
     def get_map_tf(self):
-        target = 'odom'
+        target = 'map'
 
         now = self.get_clock().now()
         
