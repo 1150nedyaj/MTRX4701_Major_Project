@@ -3,6 +3,7 @@ import numpy as np
 from math import dist
 import matplotlib.pyplot as plt
 from copy import deepcopy
+import sys
 
 import qr_destinations.lidar_project_to_image as lpi
 from qr_destinations.types import Destination, TagDetection
@@ -22,27 +23,33 @@ class DestinationHandler(object):
         self.tag_rad = 0.1              # min space between tags in m
         self._aruco_dict_id = aruco_dict
         self._aruco_dictionary = cv2.aruco.getPredefinedDictionary(aruco_dict)
-        self._aruco_params = cv2.aruco.DetectorParameters()
+        self._aruco_params = cv2.aruco.DetectorParameters_create()
 
         # plotting (scheming even)
         # plt.ion()
         # self._fig, self._ax_map = plt.subplots(1, 1, figsize=(7, 7))
 
     def find_tags(self, lidar_pts, img, tf):
+        # self._node.get_logger().info(f"find_tags: pts={lidar_pts.shape}, img={img.shape}, dtype={img.dtype}")
+
 
         # bring lidar points into camera frame
         lidar_project = lpi.LidarProject(img, lidar_pts)
+        # print("STAGE 9: LidarProject built", flush=True, file=sys.stderr)
+
         undistorted_img = lidar_project.img
         img_frame_pts = lidar_project.img_pts
-        lidar_frame_pts = lidar_project.lidar_pts
+        lidar_frame_pts = lidar_project.lidar_pts   
 
         # Extract AruCo tags
         img_grey = cv2.cvtColor(undistorted_img, cv2.COLOR_BGR2GRAY)
+        # print("STAGE 10: cvtColor done", flush=True, file=sys.stderr)
         corners_list, ids, _ = cv2.aruco.detectMarkers(
             img_grey, self._aruco_dictionary, parameters=self._aruco_params
         )
+        # print("STAGE 11: detectMarkers done", flush=True, file=sys.stderr)
         if ids is None:
-            print("No tags found in frame")
+            # print("No tags found in frame")
             return
         self._node.get_logger().info(f"Found {[i for i in ids.flatten().tolist()]}")
 
@@ -79,6 +86,10 @@ class DestinationHandler(object):
             mean_map_coords, _, _ = self.Relative2AbsoluteXY(tf, d.centre)
             mean_map_coords =  mean_map_coords.flatten()
             v_normal_from_map = self.rotate_v_to_map_frame(tf, d.normal_vector)
+
+            if d.normal_vector is None:
+                self._node.get_logger().warn(f"Tag {tag_id} has insufficient lidar points, skipping")
+                continue
 
             self._node.get_logger().info(f"detection built from {len(d.bounded_lidar_points)} points...")
 

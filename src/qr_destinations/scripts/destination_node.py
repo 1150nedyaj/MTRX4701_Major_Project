@@ -79,8 +79,11 @@ class RadarModuleNode(Node):
 
         try:
             pts = np.array([[p.x, p.y] for p in pointcloud_msg.points], dtype=float)
-            img = self._bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8")
+            img = self._bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8").copy()
             tf = self.last_tf.transform
+
+            if len(pts) == 0:
+                return
 
             self.qr_handler.find_tags(pts, img, tf)
             
