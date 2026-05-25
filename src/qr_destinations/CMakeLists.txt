@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(mmwave_radar)
+project(qr_destinations)
  
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -11,14 +11,9 @@ find_package(ament_cmake_python REQUIRED)
 ament_python_install_package(${PROJECT_NAME} PACKAGE_DIR src/${PROJECT_NAME})
  
 install(PROGRAMS
-  scripts/array_transforms_node.py
-  scripts/radar_module_node.py
-  scripts/array_diagnostics_node.py
+  scripts/destination_node.py
+  scripts/debug_node.py
   DESTINATION lib/${PROJECT_NAME}
-)
- 
-install(DIRECTORY config
-  DESTINATION share/${PROJECT_NAME}
 )
 
 install(DIRECTORY launch
