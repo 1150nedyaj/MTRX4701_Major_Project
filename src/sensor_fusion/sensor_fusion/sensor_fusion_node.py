@@ -8,9 +8,10 @@ positives that arise from circular static objects (traffic cones, poles,
 wheels) which the circle-detector cannot distinguish from legs.
 
 Once a person is confirmed by both sensors they are added to a tracked-people
-buffer.  Subsequent scans keep the track alive as long as a lidar candidate
-remains nearby, even if radar or lidar drops out for a frame or two.  The
-track expires when it has not been refreshed within `hold_time` seconds.
+buffer.  The track is kept alive by radar alone — if radar continues to detect
+something near the tracked position, the hold timer resets even when the lidar
+circle-detector misses that person's legs for several frames.  The track
+expires when neither sensor has refreshed it within `hold_time` seconds.
 
 Subscribes
 ----------
@@ -97,7 +98,7 @@ class SensorFusionNode(Node):
         self._tf_listener = TransformListener(self._tf_buffer, self)
 
         # --- radar buffer: deque of (wall_time_sec, [(x, y), ...]) ---
-        # Points are pre-transformed into _target_frame when stored.
+        # Points are already transformed into _target_frame when stored.
         self._radar_buffer: deque = deque()
 
         # --- tracked people: list of dicts ---
@@ -165,6 +166,15 @@ class SensorFusionNode(Node):
         now = self.get_clock().now().nanoseconds * 1e-9
         self._radar_buffer.append((now, points))
         self._prune_radar_buffer(now)
+
+        # Keep confirmed tracks alive during lidar dropouts.
+        # If radar sees something near a tracked person, refresh the hold timer
+        # without waiting for a lidar candidate to co-confirm.  This prevents
+        # tracks from expiring when the circle-detector misses a frame.
+        # Radar cannot open new tracks — only lidar+radar agreement does that.
+        for person in self._tracked_people:
+            if self._any_radar_nearby(person["wx"], person["wy"], points):
+                person["last_confirmed"] = now
 
         # Publish orange sphere markers so radar is visible in RViz.
         self._publish_radar_markers(msg.header)
@@ -265,6 +275,7 @@ class SensorFusionNode(Node):
         except TransformException:
             pass
         try:
+            # Fall back to latest known transform (handles small timing gaps).
             return self._tf_buffer.lookup_transform(
                 self._target_frame, source_frame, Time()
             )
@@ -344,12 +355,11 @@ class SensorFusionNode(Node):
 
     def _publish_radar_markers(self, source_header: Header):
         """Publish all buffered radar points as orange spheres in target_frame."""
-        markers = MarkerArray()
-
-        # Build a header stamped to now in the target frame.
         header = Header()
         header.stamp = self.get_clock().now().to_msg()
         header.frame_id = self._target_frame
+
+        markers = MarkerArray()
 
         clear = Marker()
         clear.header = header
