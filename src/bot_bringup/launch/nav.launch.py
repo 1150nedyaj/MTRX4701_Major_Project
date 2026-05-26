@@ -20,7 +20,7 @@ def generate_launch_description():
     bringup_dir = get_package_share_directory('bot_bringup')
     nav2_bringup_dir = get_package_share_directory('nav2_bringup')
 
-    params_file = path.join(bringup_dir, 'config', 'nav2_twistStamped.yaml')
+    params_file = path.join(bringup_dir, 'config', 'human_detection_nav2.yaml')
     use_sim_time = LaunchConfiguration('use_sim_time', default='false')
 
     nav_launch = IncludeLaunchDescription(
