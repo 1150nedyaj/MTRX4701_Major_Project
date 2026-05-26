@@ -15,4 +15,4 @@ geometry_msgs/Pose pose
 ```scripts/goal_sender_node.py``` is an example for how to send data from a DestinationMsg through to nav2's ```/goal_pose``` topic. 
 Please note this is just going to tell the robot to the first tag it sees. When this get's deployed were going to have to handle multiple destinations, and I'm fairly sure we can only send one goal at a time.
 
-** goal_sender got built in botRadarLidarDestinations; it might not work in this branch on the 1st try.**
+***goal_sender got built in botRadarLidarDestinations; it might not work in this branch on the 1st try.***
