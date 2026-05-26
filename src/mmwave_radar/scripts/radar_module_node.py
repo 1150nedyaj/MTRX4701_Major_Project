@@ -48,9 +48,9 @@ class RadarModuleNode(Node):
         
 
     def pub_radar_detections(self):
-        if self.transform_collected == False:
-            self.get_logger().info(f"No tf for module; waiting...")
-            return
+        # if self.transform_collected == False:
+        #     self.get_logger().info(f"No tf for module; waiting...")
+        #     return
 
         signatures = self.radar_handler.get_signatures()
         
@@ -86,25 +86,25 @@ class RadarModuleNode(Node):
 
         self._radar_report_pub.publish(report_msg)
 
-    def get_module_pitch(self):
-        try:
-            t = self._tf_buffer.lookup_transform(
-                'base_link',
-                self.module_frame,
-                self.get_clock().now())
-        except TransformException as ex:
-            self.get_logger().error(
-                f'Could not transform {'base_link'} to {self.module_frame}: {ex}')
-            sys.exit()
+    # def get_module_pitch(self):
+    #     try:
+    #         t = self._tf_buffer.lookup_transform(
+    #             'base_link',
+    #             self.module_frame,
+    #             self.get_clock().now())
+    #     except TransformException as ex:
+    #         self.get_logger().error(
+    #             f'Could not transform {'base_link'} to {self.module_frame}: {ex}')
+    #         sys.exit()
         
-        # pull out pitch from quaternion
-        mQ = t.transform.rotation
-        self.radar_pitch = math.asin(2 * (mQ.w * mQ.y - mQ.z * mQ.x))
-        self.get_logger().info(f"Radar has pitch of {round(np.degrees(self.radar_pitch), 4)} degrees.")
+    #     # pull out pitch from quaternion
+    #     mQ = t.transform.rotation
+    #     self.radar_pitch = math.asin(2 * (mQ.w * mQ.y - mQ.z * mQ.x))
+    #     self.get_logger().info(f"Radar has pitch of {round(np.degrees(self.radar_pitch), 4)} degrees.")
 
-        # static tf; only need to run this once
-        self.transform_collected = True
-        self._tf_timer.destroy()
+    #     # static tf; only need to run this once
+    #     self.transform_collected = True
+    #     self._tf_timer.destroy()
 
 
     def pub_radar_pose(self, s):
