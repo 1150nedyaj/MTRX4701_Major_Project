@@ -16,7 +16,7 @@ To spin up all the hardware run the command above. It'll spin up the nodes in tw
 - Group B
   - People Detection From LiDAR
   - Sensor Fusion People (Radar + LiDAR)
-  - QR Code Destination Advertising\
+  - QR Code Destination Advertising
 
 ### Navigation
 ```ros2 launch bot_bringup nav.launch.py```
