@@ -13,10 +13,6 @@ something near the tracked position, the hold timer resets even when the lidar
 circle-detector misses that person's legs for several frames.  The track
 expires when neither sensor has refreshed it within `hold_time` seconds.
 
-Output is published by a dedicated 10 Hz timer so that confirmed-person
-markers remain visible in RViz even when the lidar scan drops out entirely
-for one or more frames.
-
 Subscribes
 ----------
 /lidar/circle_candidates          (geometry_msgs/PoseArray)
@@ -112,10 +108,6 @@ class SensorFusionNode(Node):
         #   last_confirmed – wall time (sec) of the most recent radar confirmation
         self._tracked_people: list = []
 
-        # Frame id of the last received lidar message, used by the publish timer
-        # to stamp outgoing PoseArray messages with the correct frame.
-        self._lidar_frame: str = "base_scan"
-
         # --- radar subscribers (one per topic) ---
         self._radar_subs = []
         for topic in radar_topics:
@@ -138,13 +130,6 @@ class SensorFusionNode(Node):
         self._radar_marker_pub = self.create_publisher(
             MarkerArray, "/fusion/radar_markers", 10
         )
-
-        # --- publish timer ---
-        # Drives expiry and output at 10 Hz, independent of the lidar scan rate.
-        # This keeps RViz markers alive even when the lidar scan drops out for
-        # one or more frames — previously the markers would auto-expire because
-        # the output was only published inside _lidar_cb.
-        self._publish_timer = self.create_timer(0.1, self._publish_timer_cb)
 
         self.get_logger().info(
             f"sensor_fusion ready | threshold={self._threshold} m | "
@@ -199,16 +184,9 @@ class SensorFusionNode(Node):
     # ------------------------------------------------------------------
 
     def _lidar_cb(self, msg: PoseArray):
-        """Confirm new people from the lidar scan and update the tracked list.
-
-        Expiry and publishing are handled by the publish timer so that output
-        continues even when the lidar scan drops out for a frame or more.
-        """
+        """Update tracked people and publish the held output."""
         now = self.get_clock().now().nanoseconds * 1e-9
         self._prune_radar_buffer(now)
-
-        # Remember the lidar frame so the publish timer can stamp its output.
-        self._lidar_frame = msg.header.frame_id
 
         # Flatten all buffered radar points into one list.
         radar_points = [pt for _, pts in self._radar_buffer for pt in pts]
@@ -247,35 +225,21 @@ class SensorFusionNode(Node):
                     {"wx": wx, "wy": wy, "pose": pose, "last_confirmed": now}
                 )
 
-        self.get_logger().debug(
-            f"Fusion: {len(msg.poses)} lidar | "
-            f"{len(newly_confirmed)} confirmed now | "
-            f"{len(self._tracked_people)} tracked"
-        )
-
-    # ------------------------------------------------------------------
-    # Publish timer
-    # ------------------------------------------------------------------
-
-    def _publish_timer_cb(self):
-        """Expire stale tracks and publish output at a fixed 10 Hz rate.
-
-        Running this independently of the lidar callback means confirmed-person
-        markers stay visible in RViz during lidar scan dropouts.
-        """
-        now = self.get_clock().now().nanoseconds * 1e-9
-
-        # Expire tracks that have not been refreshed within hold_time.
+        # --- step 3: expire tracks that have not been confirmed within hold_time ---
         self._tracked_people = [
             p for p in self._tracked_people
             if (now - p["last_confirmed"]) < self._hold_time
         ]
 
-        header = Header()
-        header.stamp = self.get_clock().now().to_msg()
-        header.frame_id = self._lidar_frame
+        # --- step 4: publish all live tracks ---
+        output_poses = [p["pose"] for p in self._tracked_people]
+        self._publish(output_poses, msg)
 
-        self._publish([p["pose"] for p in self._tracked_people], header)
+        self.get_logger().debug(
+            f"Fusion: {len(msg.poses)} lidar | "
+            f"{len(newly_confirmed)} confirmed now | "
+            f"{len(self._tracked_people)} tracked"
+        )
 
     # ------------------------------------------------------------------
     # Helpers
@@ -345,12 +309,12 @@ class SensorFusionNode(Node):
     # Publishers
     # ------------------------------------------------------------------
 
-    def _publish(self, poses: list, header: Header):
+    def _publish(self, poses: list, source_msg: PoseArray):
         out = PoseArray()
-        out.header = header
+        out.header = source_msg.header
         out.poses = poses
         self._people_pub.publish(out)
-        self._publish_people_markers(poses, header)
+        self._publish_people_markers(poses, source_msg.header)
 
     def _publish_people_markers(self, poses: list, header: Header):
         markers = MarkerArray()
