@@ -70,6 +70,10 @@ class DestinationHandler(object):
             tag_mask = (u_coords >= u_min) & (u_coords <= u_max)   # maybe do expansion along line? 
             tag_bounded_points = sorted_xy[tag_mask]
             
+            if len(tag_bounded_points) == 0:
+                self._node.get_logger().warn(f"Hallucinated Tag {tag_id}; no points were found")
+                continue
+
             # current method for normal vector assumes 1+ lidar pts bounded
             d = TagDetection(tag_id, tag_mask, tag_bounded_points)
             d.normal_vector = self._build_normal_vector_from_pts(tag_bounded_points)
