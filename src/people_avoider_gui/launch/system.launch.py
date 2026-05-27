@@ -71,10 +71,18 @@ def generate_launch_description():
         }],
     )
 
+    dashboard_node = Node(
+        package="people_avoider_gui",
+        executable="dashboard",
+        name="people_avoider_dashboard",
+        output="screen",
+    )
+
     return LaunchDescription([
         declare_is_real,
         simulation_group,
         real_or_bag_group,
         people_detect_node,
         sensor_fusion_node,
+        dashboard_node
     ])
