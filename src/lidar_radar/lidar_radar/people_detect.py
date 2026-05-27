@@ -84,14 +84,14 @@ class PeopleDetectNode(Node):
                 if manhatten < max_distance:
                     mid_x = (x1 + x2) / 2
                     mid_y = (y1 + y2) / 2
-                    people.append([mid_x, mid_y, 0])
+                    people.append([mid_x, mid_y, None])
                     used.add(i)
                     used.add(j)
                     worked = True
                     break
             if worked == False:
                 used.add(i)
-                people.append([x1, y1, 0])
+                people.append([x1, y1, None])
             
         if not self.previous_people:
             self.previous_people = people    
@@ -117,7 +117,7 @@ class PeopleDetectNode(Node):
                     closest_distance = distance
                     closest_previous = past_person
 
-            if closest_previous is not None and closest_distance > 0.001:
+            if closest_previous is not None and closest_distance > 0.005:
                 xp, yp, _ = closest_previous
 
                 dx = xc - xp

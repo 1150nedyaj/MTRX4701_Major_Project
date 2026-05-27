@@ -31,6 +31,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'dashboard = people_avoider_gui.dashboard:main',        
         ],
     },
 )

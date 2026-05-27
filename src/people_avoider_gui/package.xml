@@ -4,7 +4,7 @@
   <name>people_avoider_gui</name>
   <version>0.0.0</version>
   <description>TODO: Package description</description>
-  <maintainer>TODO</maintainer>
+  <maintainer email="jpas7999@uni.sydney.edu.au">jayden</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
