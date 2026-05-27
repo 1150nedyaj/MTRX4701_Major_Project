@@ -49,14 +49,12 @@ class SignatureQueue:
         self.queue.append(deepcopy(signature))
 
     def clean_out(self, current_t_ms):
-        c_rem = 0
-        for s in self.queue:
-            if s.age(current_t_ms) > self.stale_ms:
-                del s
-                c_rem += 1
+        before = len(self.queue)
+        self.queue = [s for s in self.queue if s.age(current_t_ms) <= self.stale_ms]
+        c_rem = before - len(self.queue)
 
-        if c_rem > 0:
-            print(f"Removed {c_rem} from {self.name}...")
+        # if c_rem > 0:
+        #     print(f"Removed {c_rem} from {self.name}...")
 
     @property
     def size(self):

@@ -62,6 +62,7 @@ from sensor_msgs.msg import LaserScan
 
 from radar_messages.msg import StampedRadarDetections
 from sensor_fusion.types import SignatureQueue, RadarPersonSignature, LidarAnkleSignature
+from sensor_fusion.signature_plotter import SignaturePlotter
 
 
 class SensorFusionNode(Node):
@@ -144,6 +145,7 @@ class SensorFusionNode(Node):
 
 
         # --- Signature Queues --- 
+        self._plotter = SignaturePlotter()
         self.radar_queue = SignatureQueue('radar', radar_stale_ms)
         self.ankle_queue = SignatureQueue('LiDAR People', lidar_stale_ms)
 
@@ -171,6 +173,7 @@ class SensorFusionNode(Node):
             return
 
         t_ms = self.millis_from_rclpy_time(self.get_clock().now())
+        c_det = 0
         for det in msg.detections:
             z = getattr(det.position, 'z', 0.0)
             wx, wy, wz = self._transform_point_3d(
@@ -179,11 +182,16 @@ class SensorFusionNode(Node):
 
             s = RadarPersonSignature(wx, wy, det.covariance,t_ms)
             self.radar_queue.add(s)
+            c_det += 1
 
         # clear out the stale detections from radar queue
         self.radar_queue.clean_out(t_ms)
 
+        self.get_logger().info(f"Radar Queue - Added {c_det} - Size {self.radar_queue.size}")
+        self._plotter.update_plots([self.radar_queue])
+
     def _ankle_marker_callback(self, msg):
+
         # add the new ankle detections to the ankle queue
 
         # clear out stale detections from ankle queue
@@ -205,108 +213,108 @@ class SensorFusionNode(Node):
 
         pass
 
-    # # ------------------------------------------------------------------
-    # # Radar callback
-    # # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Radar callback
+    # ------------------------------------------------------------------
 
-    # def _radar_cb(self, msg: StampedRadarDetections):
-    #     """Transform incoming radar detections into target_frame and buffer them."""
-    #     if not msg.detections:
-    #         return
+    def _radar_cb(self, msg: StampedRadarDetections):
+        """Transform incoming radar detections into target_frame and buffer them."""
+        if not msg.detections:
+            return
 
-    #     source_frame = msg.header.frame_id
+        source_frame = msg.header.frame_id
 
-    #     # Look up the transform once for the whole message.
-    #     tf = self._get_transform(source_frame, msg.header.stamp)
-    #     if tf is None:
-    #         return
+        # Look up the transform once for the whole message.
+        tf = self._get_transform(source_frame, msg.header.stamp)
+        if tf is None:
+            return
 
-    #     tx, ty, yaw = self._tf_to_2d(tf)
+        tx, ty, yaw = self._tf_to_2d(tf)
 
-    #     points = []
-    #     for det in msg.detections:
-    #         x, y = self._apply_transform_2d(
-    #             det.position.x, det.position.y, tx, ty, yaw
-    #         )
-    #         points.append((x, y))
+        points = []
+        for det in msg.detections:
+            x, y = self._apply_transform_2d(
+                det.position.x, det.position.y, tx, ty, yaw
+            )
+            points.append((x, y))
 
-    #     now = self.get_clock().now().nanoseconds * 1e-9
-    #     self._radar_buffer.append((now, points))
-    #     self._prune_radar_buffer(now)
+        now = self.get_clock().now().nanoseconds * 1e-9
+        self._radar_buffer.append((now, points))
+        self._prune_radar_buffer(now)
 
-    #     # Keep confirmed tracks alive during lidar dropouts.
-    #     # If radar sees something near a tracked person, refresh the hold timer
-    #     # without waiting for a lidar candidate to co-confirm.  This prevents
-    #     # tracks from expiring when the circle-detector misses a frame.
-    #     # Radar cannot open new tracks — only lidar+radar agreement does that.
-    #     for person in self._tracked_people:
-    #         if self._any_radar_nearby(person["wx"], person["wy"], points):
-    #             person["last_confirmed"] = now
+        # Keep confirmed tracks alive during lidar dropouts.
+        # If radar sees something near a tracked person, refresh the hold timer
+        # without waiting for a lidar candidate to co-confirm.  This prevents
+        # tracks from expiring when the circle-detector misses a frame.
+        # Radar cannot open new tracks — only lidar+radar agreement does that.
+        for person in self._tracked_people:
+            if self._any_radar_nearby(person["wx"], person["wy"], points):
+                person["last_confirmed"] = now
 
-    #     # Publish orange sphere markers so radar is visible in RViz.
-    #     self._publish_radar_markers(msg.header)
+        # Publish orange sphere markers so radar is visible in RViz.
+        self._publish_radar_markers(msg.header)
 
-    # # ------------------------------------------------------------------
-    # # Lidar callback
-    # # ------------------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Lidar callback
+    # ------------------------------------------------------------------
 
-    # def _lidar_cb(self, msg: PoseArray):
-    #     """Update tracked people and publish the held output."""
-    #     now = self.get_clock().now().nanoseconds * 1e-9
-    #     self._prune_radar_buffer(now)
+    def _lidar_cb(self, msg: PoseArray):
+        """Update tracked people and publish the held output."""
+        now = self.get_clock().now().nanoseconds * 1e-9
+        self._prune_radar_buffer(now)
 
-    #     # Flatten all buffered radar points into one list.
-    #     radar_points = [pt for _, pts in self._radar_buffer for pt in pts]
+        # Flatten all buffered radar points into one list.
+        radar_points = [pt for _, pts in self._radar_buffer for pt in pts]
 
-    #     # Compute the lidar → target_frame transform once for this scan.
-    #     lidar_frame = msg.header.frame_id
-    #     if lidar_frame != self._target_frame:
-    #         tf = self._get_transform(lidar_frame, msg.header.stamp)
-    #         if tf is None:
-    #             return
-    #         tx, ty, yaw = self._tf_to_2d(tf)
-    #     else:
-    #         tx, ty, yaw = 0.0, 0.0, 0.0
+        # Compute the lidar → target_frame transform once for this scan.
+        lidar_frame = msg.header.frame_id
+        if lidar_frame != self._target_frame:
+            tf = self._get_transform(lidar_frame, msg.header.stamp)
+            if tf is None:
+                return
+            tx, ty, yaw = self._tf_to_2d(tf)
+        else:
+            tx, ty, yaw = 0.0, 0.0, 0.0
 
-    #     # --- step 1: find which lidar candidates are radar-confirmed right now ---
-    #     newly_confirmed = []  # (wx, wy, original_pose)
-    #     for pose in msg.poses:
-    #         wx, wy = self._apply_transform_2d(
-    #             pose.position.x, pose.position.y, tx, ty, yaw
-    #         )
-    #         if radar_points and self._any_radar_nearby(wx, wy, radar_points):
-    #             newly_confirmed.append((wx, wy, pose))
+        # --- step 1: find which lidar candidates are radar-confirmed right now ---
+        newly_confirmed = []  # (wx, wy, original_pose)
+        for pose in msg.poses:
+            wx, wy = self._apply_transform_2d(
+                pose.position.x, pose.position.y, tx, ty, yaw
+            )
+            if radar_points and self._any_radar_nearby(wx, wy, radar_points):
+                newly_confirmed.append((wx, wy, pose))
 
-    #     # --- step 2: merge confirmations into the tracked-people list ---
-    #     for wx, wy, pose in newly_confirmed:
-    #         matched = self._find_tracked(wx, wy)
-    #         if matched is not None:
-    #             # Refresh the existing track with the latest position and time.
-    #             matched["wx"] = wx
-    #             matched["wy"] = wy
-    #             matched["pose"] = pose
-    #             matched["last_confirmed"] = now
-    #         else:
-    #             # Brand-new person — open a fresh track.
-    #             self._tracked_people.append(
-    #                 {"wx": wx, "wy": wy, "pose": pose, "last_confirmed": now}
-    #             )
+        # --- step 2: merge confirmations into the tracked-people list ---
+        for wx, wy, pose in newly_confirmed:
+            matched = self._find_tracked(wx, wy)
+            if matched is not None:
+                # Refresh the existing track with the latest position and time.
+                matched["wx"] = wx
+                matched["wy"] = wy
+                matched["pose"] = pose
+                matched["last_confirmed"] = now
+            else:
+                # Brand-new person — open a fresh track.
+                self._tracked_people.append(
+                    {"wx": wx, "wy": wy, "pose": pose, "last_confirmed": now}
+                )
 
-    #     # --- step 3: expire tracks that have not been confirmed within hold_time ---
-    #     self._tracked_people = [
-    #         p for p in self._tracked_people
-    #         if (now - p["last_confirmed"]) < self._hold_time
-    #     ]
+        # --- step 3: expire tracks that have not been confirmed within hold_time ---
+        self._tracked_people = [
+            p for p in self._tracked_people
+            if (now - p["last_confirmed"]) < self._hold_time
+        ]
 
-    #     # --- step 4: publish all live tracks ---
-    #     output_poses = [p["pose"] for p in self._tracked_people]
-    #     self._publish(output_poses, msg)
+        # --- step 4: publish all live tracks ---
+        output_poses = [p["pose"] for p in self._tracked_people]
+        self._publish(output_poses, msg)
 
-    #     self.get_logger().debug(
-    #         f"Fusion: {len(msg.poses)} lidar | "
-    #         f"{len(newly_confirmed)} confirmed now | "
-    #         f"{len(self._tracked_people)} tracked"
-    #     )
+        self.get_logger().debug(
+            f"Fusion: {len(msg.poses)} lidar | "
+            f"{len(newly_confirmed)} confirmed now | "
+            f"{len(self._tracked_people)} tracked"
+        )
 
     # ------------------------------------------------------------------
     # Helpers
