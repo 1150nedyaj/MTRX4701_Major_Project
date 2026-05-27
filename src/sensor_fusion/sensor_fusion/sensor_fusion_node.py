@@ -48,11 +48,13 @@ target_frame              string    – common TF frame for spatial comparison
 
 import math
 from collections import deque
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
 from rclpy.time import Time
 
+from sensor_msgs.msg import LaserScan
 from geometry_msgs.msg import PoseArray
 from std_msgs.msg import Header
 from visualization_msgs.msg import MarkerArray, Marker
@@ -122,6 +124,14 @@ class SensorFusionNode(Node):
             PoseArray, "/lidar/circle_candidates", self._lidar_cb, 10
         )
 
+        # raw scan
+        self.scan_sub = self.create_subscription(
+            LaserScan,
+            "/scan",
+            self.scan_callback,
+            10,
+        )
+
         # --- publishers ---
         self._people_pub = self.create_publisher(PoseArray, "/fusion/people", 10)
         self._marker_pub = self.create_publisher(
@@ -130,6 +140,11 @@ class SensorFusionNode(Node):
         self._radar_marker_pub = self.create_publisher(
             MarkerArray, "/fusion/radar_markers", 10
         )
+
+        # lidar points of a human
+        self._people_scan_pub = self.create_publisher(LaserScan, "fusion/human_scan", 10)
+
+        self.confirmed_people_cache = []
 
         self.get_logger().info(
             f"sensor_fusion ready | threshold={self._threshold} m | "
@@ -233,6 +248,8 @@ class SensorFusionNode(Node):
 
         # --- step 4: publish all live tracks ---
         output_poses = [p["pose"] for p in self._tracked_people]
+        
+        self.confirmed_people_cache = [(p["wx"], p["wy"]) for p in self._tracked_people]
         self._publish(output_poses, msg)
 
         self.get_logger().debug(
@@ -242,8 +259,69 @@ class SensorFusionNode(Node):
         )
 
     # ------------------------------------------------------------------
+    # Raw LaserScan masking callback
+    # ------------------------------------------------------------------
+    def scan_callback(self, msg: LaserScan):
+        # Fallback: if cache is unpopulated yet, pass an empty scan message safely
+        if not self.confirmed_people_cache:
+            filtered_msg = self._create_empty_scan(msg)
+            self._people_scan_pub.publish(filtered_msg)
+            return
+
+        filtered_ranges = [float('inf')] * len(msg.ranges)
+        human_gating_radius = 0.45  # Window radius around person center to capture beams
+        
+        scan_frame = msg.header.frame_id
+        if scan_frame != self._target_frame:
+            tf = self._get_transform(scan_frame, msg.header.stamp)
+            if tf is None:
+                return
+            tx, ty, yaw = self._tf_to_2d(tf)
+        else:
+            tx, ty, yaw = 0.0, 0.0, 0.0
+
+        # Run point validation matching
+        for i, distance in enumerate(msg.ranges):
+            if not np.isfinite(distance) or distance < msg.range_min or distance > msg.range_max:
+                continue
+
+            angle = msg.angle_min + i * msg.angle_increment
+            lx = distance * math.cos(angle)
+            ly = distance * math.sin(angle)
+
+            # Bring the raw lidar point out of its local sensor frame and into target_frame
+            wx, wy = self._apply_transform_2d(lx, ly, tx, ty, yaw)
+
+            for cx, cy in self.confirmed_people_cache:
+                dist_to_center = math.hypot(wx - cx, wy - cy)
+
+                if dist_to_center <= human_gating_radius:
+                    filtered_ranges[i] = distance
+                    break 
+
+        # Assemble and ship message
+        filtered_msg = self._create_empty_scan(msg)
+        filtered_msg.ranges = filtered_ranges
+        self._people_scan_pub.publish(filtered_msg)
+
+    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def _create_empty_scan(self, source_msg: LaserScan) -> LaserScan:
+        """MISSING PIECE 3: Structuring helper to clone the scan metadata layout."""
+        scan = LaserScan()
+        scan.header = source_msg.header
+        scan.angle_min = source_msg.angle_min
+        scan.angle_max = source_msg.angle_max
+        scan.angle_increment = source_msg.angle_increment
+        scan.time_increment = source_msg.time_increment
+        scan.scan_time = source_msg.scan_time
+        scan.range_min = source_msg.range_min
+        scan.range_max = source_msg.range_max
+        scan.ranges = [float('inf')] * len(source_msg.ranges)
+        if source_msg.intensities:
+            scan.intensities = source_msg.intensities
+        return scan
 
     def _find_tracked(self, wx: float, wy: float) -> dict | None:
         """Return the closest tracked person within threshold, or None."""
