@@ -62,7 +62,7 @@ def generate_launch_description():
 
     group_b = TimerAction(
         period=10.0,
-        actions=[lidar_people_node, fusion_node, qr_launch]
+        actions=[lidar_people_node, qr_launch] # , fusion_node
     )
 
     launch_seq = [
