@@ -26,7 +26,9 @@ setup(
         ],
     },
     entry_points={
-    'console_scripts': ['people_detect = lidar_radar.people_detect:main',
-     ],
+        'console_scripts': [
+            'people_detect = lidar_radar.people_detect:main',
+            'sensor_fusion = lidar_radar.sensor_fusion_node:main',
+        ],
     },
 )

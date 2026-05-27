@@ -53,18 +53,28 @@ def generate_launch_description():
         output="screen",
     )
 
-    dashboard_node = Node(
-    package="people_avoider_gui",
-    executable="dashboard",
-    name="people_avoider_dashboard",
-    output="screen",
+    sensor_fusion_node = Node(
+        package="lidar_radar",
+        executable="sensor_fusion",
+        name="sensor_fusion",
+        output="screen",
+        parameters=[{
+            # List every radar detection topic used in your array config.
+            # Add more entries if you have multiple radar modules.
+            "radar_topics": ["/mmWave_array/radar_0/detections"],
+            # A lidar person is confirmed when a radar point is within this radius (metres).
+            "fusion_distance_threshold": 1.0,
+            # Radar readings older than this (seconds) are discarded from the buffer.
+            "radar_timeout": 0.5,
+            # Common TF frame used for spatial comparison.
+            "target_frame": "base_link",
+        }],
     )
-     
 
     return LaunchDescription([
         declare_is_real,
         simulation_group,
         real_or_bag_group,
         people_detect_node,
-        dashboard_node,
+        sensor_fusion_node,
     ])

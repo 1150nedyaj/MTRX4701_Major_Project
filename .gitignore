@@ -34,3 +34,7 @@ rosbag2_*/
 *.tmp
 *.swp
 
+src/DynamixelSDK/
+src/turtlebot3/
+src/turtlebot3_msgs/
+src/turtlebot3_simulations/
