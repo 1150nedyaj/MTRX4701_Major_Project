@@ -188,17 +188,50 @@ class SensorFusionNode(Node):
         self.radar_queue.clean_out(t_ms)
 
         self.get_logger().info(f"Radar Queue - Added {c_det} - Size {self.radar_queue.size}")
-        self._plotter.update_plots([self.radar_queue])
 
     def _ankle_marker_callback(self, msg):
+        if not msg.markers:
+            self.get_logger().error("Message empty")
+            return
 
-        # add the new ankle detections to the ankle queue
+        # Add new Ankles to Queue
+        c_det = 0
+        for m in msg.markers:
+
+            t_ms = self.millis_from_rclpy_time(self.get_clock().now())
+
+            # marker → target_frame transform
+            source_frame = msg.header.frame_id
+            tf = self._get_transform(source_frame, msg.header.stamp)
+            if tf is None:
+                self.get_logger().error("Failed to get TF for marker")
+                continue
+
+            # lidar → target_frame transform
+            lidar_frame = msg.header.frame_id
+            if lidar_frame != self._target_frame:
+                tf = self._get_transform(lidar_frame, msg.header.stamp)
+                if tf is None:
+                    return
+                tx, ty, yaw = self._tf_to_2d(tf)
+            else:
+                tx, ty, yaw = 0.0, 0.0, 0.0
+
+            wx, wy = self._apply_transform_2d(
+                m.pose.position.x, m.pose.position.y, tx, ty, yaw
+            )
+            s = LidarAnkleSignature(wx, wy, t_ms)
+            self.ankle_queue.add(s)
+            c_det += 1
 
         # clear out stale detections from ankle queue
+        self.ankle_queue.clean_out(t_ms)
+        self.get_logger().info(f"Ankle Queue - Added {c_det} - Size {self.ankle_queue.size}")
 
-        pass
+
 
     def _scan_callback(self, msg):
+        self._plotter.update_plots([self.radar_queue, self.ankle_queue])
         # do generate fusion people from radar and ankle queues
         # ...
 
