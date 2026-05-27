@@ -6,8 +6,7 @@ log/
 # Ros bags
 one_person_may_5/
 two_people_may_5/
-# DDS XML files
-*.xml
+
 
 # Python generated files
 __pycache__/
