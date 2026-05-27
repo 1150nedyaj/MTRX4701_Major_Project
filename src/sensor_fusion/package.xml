@@ -3,8 +3,8 @@
 <package format="3">
   <name>sensor_fusion</name>
   <version>0.0.0</version>
-  <description>Fuses lidar people detections with radar confirmations to eliminate false positives.</description>
-  <maintainer email="jpas7999@uni.sydney.edu.au">jayden</maintainer>
+  <description>Fusion of mmWave Human Radar Signatures and LiDAR Ankles</description>
+  <maintainer email="jfox6192@uni.sydney.edu.au">Jeremy Fox</maintainer>
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
