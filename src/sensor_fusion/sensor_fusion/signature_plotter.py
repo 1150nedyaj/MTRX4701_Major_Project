@@ -10,7 +10,7 @@ from matplotlib.patches import Ellipse
 
 
 class SignaturePlotter:
-    def __init__(self, xlim=(-12, 12), ylim=(-12, 12), n_std=2.0):
+    def __init__(self, xlim=(-5, 5), ylim=(-5, 5), n_std=2.0):
         """
         Live plot of signatures from multiple SignatureQueue sources.
 

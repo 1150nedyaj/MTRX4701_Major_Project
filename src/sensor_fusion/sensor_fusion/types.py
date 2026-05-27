@@ -1,9 +1,11 @@
 from dataclasses import dataclass
-from abc import ABC
-from math import sqrt
+import numpy as np
 from copy import deepcopy
 
-class Signature(ABC):
+from visualization_msgs.msg import Marker
+
+@dataclass
+class Signature:
     def __init__(self, x:float, y:float, flat_covariance, t_birth_ms:float):
         self.x = x
         self.y = y
@@ -15,11 +17,18 @@ class Signature(ABC):
     def age(self, t_ms):
         return t_ms - self.t
 
-    # @abstractmethod
-    # def area(self):
-    #     """Must be implemented by subclasses"""
-    #     pass
+    def __add__(self, other):
+        avg_x = (self.x + other.x) / 2.0
+        avg_y = (self.y + other.y) / 2.0
 
+        cov_a = np.array(self.covariance, dtype=float)
+        cov_b = np.array(other.covariance, dtype=float)
+        avg_cov = ((cov_a + cov_b) / 2.0).tolist()
+
+        t_birth = max(self.t, other.t)
+
+        return Signature(avg_x, avg_y, avg_cov, t_birth)
+    
 @dataclass
 class RadarPersonSignature(Signature):
     def __init__(self, x, y, flat_covariance, t):
@@ -29,10 +38,10 @@ class RadarPersonSignature(Signature):
 @dataclass
 class LidarAnkleSignature(Signature):
     def __init__(self, x, y, t):
-        PERSON_RAD = 0.3
+        PERSON_RAD = 0.15
 
-        flat_covar = [sqrt(PERSON_RAD), 0, 
-                      0, sqrt(PERSON_RAD)]
+        flat_covar = [PERSON_RAD**2, 0, 
+                      0, PERSON_RAD**2]
         
         super().__init__(x, y, flat_covar, t)
 
@@ -55,6 +64,10 @@ class SignatureQueue:
 
         # if c_rem > 0:
         #     print(f"Removed {c_rem} from {self.name}...")
+
+    @property
+    def values(self):
+        return self.queue
 
     @property
     def size(self):

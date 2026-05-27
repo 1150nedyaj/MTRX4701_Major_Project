@@ -47,6 +47,7 @@ target_frame              string    – common TF frame for spatial comparison
 """
 
 import math
+import numpy as np
 
 import rclpy
 from rclpy.node import Node
@@ -55,13 +56,13 @@ from rclpy.time import Time
 from tf2_ros import Buffer, TransformListener, TransformException
 from tf2_geometry_msgs import do_transform_point
 
-from geometry_msgs.msg import PoseArray, PointStamped
+from geometry_msgs.msg import PoseArray, PointStamped, Pose
 from std_msgs.msg import Header
 from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import LaserScan
 
 from radar_messages.msg import StampedRadarDetections
-from sensor_fusion.types import SignatureQueue, RadarPersonSignature, LidarAnkleSignature
+from sensor_fusion.types import SignatureQueue, RadarPersonSignature, LidarAnkleSignature, Signature
 from sensor_fusion.signature_plotter import SignaturePlotter
 
 
@@ -73,7 +74,11 @@ class SensorFusionNode(Node):
         # --- Signature Queue Paramters
         radar_stale_ms = 500
         lidar_stale_ms = 100 # make smaller?
+        fusion_stale_ms = 1000
 
+        self.fusion_assoc_mahal = 2.5
+        self.human_assoc_mahal = 2.5
+        self.new_human_mahal = 15
 
         # --- ROS parameters ---
         self.declare_parameter("radar_topics", ["/mmWave_array/radar_0/detections"])
@@ -120,7 +125,7 @@ class SensorFusionNode(Node):
 
         # --- LiDAR Related Subscriptions --- 
         self._ankle_sub = self.create_subscription(
-            PoseArray, 
+            MarkerArray, 
             "/lidar/circle_markers", 
             self._ankle_marker_callback, 
             10
@@ -146,9 +151,9 @@ class SensorFusionNode(Node):
 
         # --- Signature Queues --- 
         self._plotter = SignaturePlotter()
-        self.radar_queue = SignatureQueue('radar', radar_stale_ms)
-        self.ankle_queue = SignatureQueue('LiDAR People', lidar_stale_ms)
-
+        self.radar_queue = SignatureQueue('radar_people', radar_stale_ms)
+        self.ankle_queue = SignatureQueue('lidar_people', lidar_stale_ms)
+        self.people_queue = SignatureQueue('fusion_people', fusion_stale_ms)
 
         # self.get_logger().info(
         #     f"sensor_fusion ready | threshold={self._threshold} m | "
@@ -162,6 +167,7 @@ class SensorFusionNode(Node):
     # ------------------------------------------------------------------
 
     def _radar_detection_callback(self, msg: StampedRadarDetections):
+        
 
         # Parse the radar data and add the new radar detections to the radar queue
         if not msg.detections:
@@ -190,48 +196,46 @@ class SensorFusionNode(Node):
         self.get_logger().info(f"Radar Queue - Added {c_det} - Size {self.radar_queue.size}")
 
     def _ankle_marker_callback(self, msg):
+        self.get_logger().info('Marker fired')
         if not msg.markers:
             self.get_logger().error("Message empty")
             return
 
         # Add new Ankles to Queue
+        t_ms = self.millis_from_rclpy_time(self.get_clock().now())
         c_det = 0
         for m in msg.markers:
-
-            t_ms = self.millis_from_rclpy_time(self.get_clock().now())
-
-            # marker → target_frame transform
-            source_frame = msg.header.frame_id
-            tf = self._get_transform(source_frame, msg.header.stamp)
-            if tf is None:
-                self.get_logger().error("Failed to get TF for marker")
+            # the detector publishes positions in points[], not pose.position
+            if not m.points:
                 continue
 
-            # lidar → target_frame transform
-            lidar_frame = msg.header.frame_id
-            if lidar_frame != self._target_frame:
-                tf = self._get_transform(lidar_frame, msg.header.stamp)
+            # optional: only take the paired "Person Centers", skip raw ankles
+            # if m.ns != "Person Centers":
+            #     continue
+
+            lidar_frame = m.header.frame_id
+            if lidar_frame and lidar_frame != self._target_frame:
+                tf = self._get_transform(lidar_frame, m.header.stamp)
                 if tf is None:
-                    return
+                    continue
                 tx, ty, yaw = self._tf_to_2d(tf)
             else:
                 tx, ty, yaw = 0.0, 0.0, 0.0
 
-            wx, wy = self._apply_transform_2d(
-                m.pose.position.x, m.pose.position.y, tx, ty, yaw
-            )
-            s = LidarAnkleSignature(wx, wy, t_ms)
-            self.ankle_queue.add(s)
-            c_det += 1
+            for pt in m.points:
+                wx, wy = self._apply_transform_2d(pt.x, pt.y, tx, ty, yaw)
+                self.ankle_queue.add(LidarAnkleSignature(wx, wy, t_ms))
+                c_det += 1
 
         # clear out stale detections from ankle queue
         self.ankle_queue.clean_out(t_ms)
         self.get_logger().info(f"Ankle Queue - Added {c_det} - Size {self.ankle_queue.size}")
 
-
-
     def _scan_callback(self, msg):
-        self._plotter.update_plots([self.radar_queue, self.ankle_queue])
+        self.run_ankle_radar_fusion(self.ankle_queue,
+                                    self.radar_queue,
+                                    self.people_queue)
+        
         # do generate fusion people from radar and ankle queues
         # ...
 
@@ -241,117 +245,81 @@ class SensorFusionNode(Node):
         # sample lidar points that fall in a person's covariance
         # ...
 
-
-
+        self._plotter.update_plots([self.radar_queue, self.ankle_queue, self.people_queue])
+        self._publish_poses_from_SignatureQueue(self.people_queue)
 
         pass
 
     # ------------------------------------------------------------------
-    # Radar callback
-    # ------------------------------------------------------------------
-
-    def _radar_cb(self, msg: StampedRadarDetections):
-        """Transform incoming radar detections into target_frame and buffer them."""
-        if not msg.detections:
-            return
-
-        source_frame = msg.header.frame_id
-
-        # Look up the transform once for the whole message.
-        tf = self._get_transform(source_frame, msg.header.stamp)
-        if tf is None:
-            return
-
-        tx, ty, yaw = self._tf_to_2d(tf)
-
-        points = []
-        for det in msg.detections:
-            x, y = self._apply_transform_2d(
-                det.position.x, det.position.y, tx, ty, yaw
-            )
-            points.append((x, y))
-
-        now = self.get_clock().now().nanoseconds * 1e-9
-        self._radar_buffer.append((now, points))
-        self._prune_radar_buffer(now)
-
-        # Keep confirmed tracks alive during lidar dropouts.
-        # If radar sees something near a tracked person, refresh the hold timer
-        # without waiting for a lidar candidate to co-confirm.  This prevents
-        # tracks from expiring when the circle-detector misses a frame.
-        # Radar cannot open new tracks — only lidar+radar agreement does that.
-        for person in self._tracked_people:
-            if self._any_radar_nearby(person["wx"], person["wy"], points):
-                person["last_confirmed"] = now
-
-        # Publish orange sphere markers so radar is visible in RViz.
-        self._publish_radar_markers(msg.header)
-
-    # ------------------------------------------------------------------
-    # Lidar callback
-    # ------------------------------------------------------------------
-
-    def _lidar_cb(self, msg: PoseArray):
-        """Update tracked people and publish the held output."""
-        now = self.get_clock().now().nanoseconds * 1e-9
-        self._prune_radar_buffer(now)
-
-        # Flatten all buffered radar points into one list.
-        radar_points = [pt for _, pts in self._radar_buffer for pt in pts]
-
-        # Compute the lidar → target_frame transform once for this scan.
-        lidar_frame = msg.header.frame_id
-        if lidar_frame != self._target_frame:
-            tf = self._get_transform(lidar_frame, msg.header.stamp)
-            if tf is None:
-                return
-            tx, ty, yaw = self._tf_to_2d(tf)
-        else:
-            tx, ty, yaw = 0.0, 0.0, 0.0
-
-        # --- step 1: find which lidar candidates are radar-confirmed right now ---
-        newly_confirmed = []  # (wx, wy, original_pose)
-        for pose in msg.poses:
-            wx, wy = self._apply_transform_2d(
-                pose.position.x, pose.position.y, tx, ty, yaw
-            )
-            if radar_points and self._any_radar_nearby(wx, wy, radar_points):
-                newly_confirmed.append((wx, wy, pose))
-
-        # --- step 2: merge confirmations into the tracked-people list ---
-        for wx, wy, pose in newly_confirmed:
-            matched = self._find_tracked(wx, wy)
-            if matched is not None:
-                # Refresh the existing track with the latest position and time.
-                matched["wx"] = wx
-                matched["wy"] = wy
-                matched["pose"] = pose
-                matched["last_confirmed"] = now
-            else:
-                # Brand-new person — open a fresh track.
-                self._tracked_people.append(
-                    {"wx": wx, "wy": wy, "pose": pose, "last_confirmed": now}
-                )
-
-        # --- step 3: expire tracks that have not been confirmed within hold_time ---
-        self._tracked_people = [
-            p for p in self._tracked_people
-            if (now - p["last_confirmed"]) < self._hold_time
-        ]
-
-        # --- step 4: publish all live tracks ---
-        output_poses = [p["pose"] for p in self._tracked_people]
-        self._publish(output_poses, msg)
-
-        self.get_logger().debug(
-            f"Fusion: {len(msg.poses)} lidar | "
-            f"{len(newly_confirmed)} confirmed now | "
-            f"{len(self._tracked_people)} tracked"
-        )
-
-    # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+    def run_ankle_radar_fusion(self, ankle_queue: SignatureQueue, radar_queue: SignatureQueue, fusion_queue: SignatureQueue):
+
+        # clear out the stale people
+        t_ms = self.millis_from_rclpy_time(self.get_clock().now())
+        self.people_queue.clean_out(t_ms)
+
+        # match ankles to radar
+        fused = []
+        for a in ankle_queue.values:
+            nearest = self.nearest_signature(a, radar_queue.values)
+            if nearest is None:
+                continue
+
+            r, dist = nearest
+            if dist <= self.fusion_assoc_mahal:
+                fused.append(a+r)
+
+        # try to match up fused with people
+        for f in fused:
+            nearest = self.nearest_signature(f, fusion_queue.values)
+
+            if nearest is not None and nearest[1] <= self.human_assoc_mahal:
+                tracked = nearest[0]
+                tracked.x = f.x
+                tracked.y = f.y
+                tracked.covariance = f.covariance
+                tracked.t = f.t
+
+            elif nearest is None or nearest[1] > self.new_human_mahal:
+                fusion_queue.add(f)
+
+
+    @staticmethod
+    def nearest_signature(query:Signature, candidates):
+        """Return (closest_signature, distance) or None if candidates is empty."""
+        best_sig = None
+        best_dist = float('inf')
+        for c in candidates:
+            d = SensorFusionNode.mahalanobis_distance(query, c)
+            if d < best_dist:
+                best_dist = d
+                best_sig = c
+        if best_sig is None:
+            return None
+        return best_sig, best_dist
+
+    @staticmethod
+    def mahalanobis_distance(sig_a: Signature, sig_b:Signature):
+        """
+        Mahalanobis distance between two signatures, accounting for the
+        uncertainty (covariance) of both.
+        """
+        dx = sig_a.x - sig_b.x
+        dy = sig_a.y - sig_b.y
+        delta = np.array([dx, dy])
+
+        cov_a = np.array(sig_a.covariance, dtype=float).reshape(2, 2)
+        cov_b = np.array(sig_b.covariance, dtype=float).reshape(2, 2)
+        combined = cov_a + cov_b
+
+        try:
+            inv = np.linalg.inv(combined)
+        except np.linalg.LinAlgError:
+            inv = np.linalg.pinv(combined)
+
+        d_sq = float(delta.T @ inv @ delta)
+        return math.sqrt(max(d_sq, 0.0))
 
     @staticmethod
     def millis_from_rclpy_time(rclpy_time):
@@ -410,102 +378,22 @@ class SensorFusionNode(Node):
     # Publishers
     # ------------------------------------------------------------------
 
-    def _publish(self, poses: list, source_msg: PoseArray):
-        out = PoseArray()
-        out.header = source_msg.header
-        out.poses = poses
-        self._people_pub.publish(out)
-        self._publish_people_markers(poses, source_msg.header)
+    def _publish_poses_from_SignatureQueue(self, sig_queue: SignatureQueue):
 
-    def _publish_people_markers(self, poses: list, header: Header):
-        markers = MarkerArray()
+        pose_array = PoseArray()
+        pose_array.header.frame_id = self._target_frame
+        pose_array.header.stamp = self.get_clock().now().to_msg()
 
-        clear = Marker()
-        clear.header = header
-        clear.ns = "fusion_people"
-        clear.action = Marker.DELETEALL
-        markers.markers.append(clear)
+        for s in sig_queue.values:
+            p = Pose()
+            p.position.x = s.x
+            p.position.y = s.y
+            p.position.z = 0.0
+            p.orientation.w = 1.0
+            pose_array.poses.append(p)
 
-        for i, pose in enumerate(poses):
-            m = Marker()
-            m.header = header
-            m.ns = "fusion_people"
-            m.id = i + 1
-            m.type = Marker.CYLINDER
-            m.action = Marker.ADD
-
-            m.pose.position.x = pose.position.x
-            m.pose.position.y = pose.position.y
-            m.pose.position.z = 0.5
-            m.pose.orientation = pose.orientation
-
-            m.scale.x = 0.4
-            m.scale.y = 0.4
-            m.scale.z = 1.0
-
-            m.color.r = 0.0
-            m.color.g = 1.0
-            m.color.b = 0.0
-            m.color.a = 0.8
-
-            m.lifetime.sec = int(self._hold_time) + 1
-
-            markers.markers.append(m)
-
-        self._marker_pub.publish(markers)
-
-    def _publish_radar_markers(self, source_header: Header):
-        """Publish all buffered radar points as orange spheres in target_frame."""
-        header = Header()
-        header.stamp = self.get_clock().now().to_msg()
-        header.frame_id = self._target_frame
-
-        markers = MarkerArray()
-
-        clear = Marker()
-        clear.header = header
-        clear.ns = "radar_detections"
-        clear.action = Marker.DELETEALL
-        markers.markers.append(clear)
-
-        marker_id = 0
-        for _, points in self._radar_buffer:
-            for wx, wy in points:
-                m = Marker()
-                m.header = header
-                m.ns = "radar_detections"
-                m.id = marker_id
-                marker_id += 1
-
-                m.type = Marker.SPHERE
-                m.action = Marker.ADD
-
-                m.pose.position.x = wx
-                m.pose.position.y = wy
-                m.pose.position.z = 0.1  # slightly above ground
-                m.pose.orientation.w = 1.0
-
-                m.scale.x = 0.3
-                m.scale.y = 0.3
-                m.scale.z = 0.3
-
-                # Orange — visually distinct from the green people cylinders.
-                m.color.r = 1.0
-                m.color.g = 0.5
-                m.color.b = 0.0
-                m.color.a = 0.9
-
-                # Auto-expire slightly after the buffer timeout so stale
-                # markers clean themselves up if the node stops publishing.
-                lifetime_sec = self._radar_timeout + 0.5
-                m.lifetime.sec = int(lifetime_sec)
-                m.lifetime.nanosec = int((lifetime_sec % 1) * 1e9)
-
-                markers.markers.append(m)
-
-        self._radar_marker_pub.publish(markers)
-
-
+        self._people_pub.publish(pose_array)
+    
 def main(args=None):
     rclpy.init(args=args)
     node = SensorFusionNode()
@@ -516,3 +404,44 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
+
+
+    # def _publish_markers_from_SiqnatureQueue(self, sig_queue: SignatureQueue):
+
+    #     sig_markers = MarkerArray()
+
+    #     header = Header()
+    #     header.frame_id = self._target_frame
+    #     header.stamp = self.get_clock().now().to_msg()
+
+    #     clear = Marker()
+    #     clear.header = header
+    #     clear.ns = sig_queue.name
+    #     clear.action = Marker.DELETEALL
+    #     sig_markers.markers.append(clear)
+
+    #     for i, s in enumerate(sig_queue.values):
+    #         m = Marker()
+
+    #         m.header = header
+    #         m.ns = sig_queue.name
+    #         m.id = i + 1
+    #         m.type = Marker.CYLINDER
+    #         m.action = Marker.ADD
+
+    #         m.pose.position.x = s.x
+    #         m.pose.position.y = s.y
+    #         m.pose.position.z = 0.0
+
+    #         m.scale.x = 0.4
+    #         m.scale.y = 0.4
+    #         m.scale.z = 1.0
+
+    #         m.color.r = 0.0
+    #         m.color.g = 1.0
+    #         m.color.b = 0.0
+    #         m.color.a = 0.8
+
+    #         m.lifetime.sec = int(self._hold_time) + 1
+
+    #         sig_markers.markers.append(m)
