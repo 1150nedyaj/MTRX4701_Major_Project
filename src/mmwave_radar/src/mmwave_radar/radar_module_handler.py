@@ -61,7 +61,12 @@ class RadarModuleHandler(object):
             if abs(d.angle) > 49:
                     continue
             
+            # annoying little fp at front
+            if abs(d.angle) > 40 and d.distance < 400:
+                continue
+
             # all tests passed; bring it through
+            self._node.get_logger().info(str(d))
             signatures.append(RadarSignature.from_RD03DMessage(d))
 
         return signatures
