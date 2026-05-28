@@ -59,17 +59,6 @@ def generate_launch_description():
         }.items()
     )
 
-    human_lifecycle_manager = Node(
-        package='nav2_lifecycle_manager',
-        executable='lifecycle_manager',
-        name='lifecycle_manager_human',
-        output='screen',
-        parameters=[{
-            'autostart': True,
-            'node_names': ['human_costmap']
-        }]
-    )
-
     # Sequence Actions
     launch_seq = [
         declare_use_sim_time,
