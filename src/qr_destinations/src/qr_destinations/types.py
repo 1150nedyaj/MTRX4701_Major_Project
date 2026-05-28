@@ -14,7 +14,7 @@ class Destination:
 
     name: str = ""
 
-    _wall_offset: float = 0.1
+    _wall_offset: float = 0.20
 
     def __init__(self, tag_id, centre, v_normal, pts_used):
         self.tag_id = tag_id

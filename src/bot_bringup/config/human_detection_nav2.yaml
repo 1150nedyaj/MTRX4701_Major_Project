@@ -134,7 +134,7 @@ controller_server:
       AckermannConstraints:
         min_turning_r: 0.2
       critics: [
-        "ConstraintCritic", "CostCritic", "HumanCostCritic", "GoalCritic",
+        "ConstraintCritic", "CostCritic", "GoalCritic",
         "GoalAngleCritic", "PathAlignCritic", "PathFollowCritic",
         "PathAngleCritic", "PreferForwardCritic"]
       ConstraintCritic:
@@ -166,17 +166,6 @@ controller_server:
         collision_cost: 1000000.0
         near_goal_distance: 1.0
         trajectory_point_step: 2
-      HumanCostCritic:
-        enabled: true
-        cost_power: 1
-        cost_weight: 5
-        near_collision_cost: 200
-        critical_cost: 300.0
-        consider_footprint: false
-        collision_cost: 1000000.0
-        near_goal_distance: 1.0
-        trajectory_point_step: 2
-        costmap_topic: "/human_costmap/costmap_raw"
       PathAlignCritic:
         enabled: true
         cost_power: 1
@@ -205,30 +194,29 @@ controller_server:
       #   twirling_cost_power: 1
       #   twirling_cost_weight: 10.0
 
-# ==============================================================================
-# LOCAL COSTMAP: STRIPPED PURELY TO WALLS
-# ==============================================================================
 local_costmap:
   local_costmap:
     ros__parameters:
       enable_stamped_cmd_vel: True
-      update_frequency: 10.0      
-      publish_frequency: 5.0     
+
+      # INCREASE these frequencies so the map adapts to moving obstacles much faster
+      update_frequency: 10.0      # Up from 5.0
+      publish_frequency: 5.0     # Up from 2.0
       global_frame: odom
       robot_base_frame: base_link
       rolling_window: true
       width: 3
       height: 3
       resolution: 0.05
-      robot_radius: 0.22
+      robot_radius: 0.2
       always_send_full_costmap: True
 
-      plugins: ["wall_obstacle_layer", "wall_inflation_layer"]
+      plugins: ["human_tracker_layer", "human_inflation_layer", "wall_obstacle_layer", "wall_inflation_layer"]
 
       wall_obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        combination_method: 1       
+        combination_method: 1       # Ensure clearing is prioritized
         observation_sources: scan
         scan:
           topic: /scan
@@ -236,42 +224,26 @@ local_costmap:
           clearing: True
           marking: True
           data_type: "LaserScan"
+          # Crucial: Match your raytrace range closely to your obstacle range
           raytrace_max_range: 3.5
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.0
+
+          # FORCE RE-EVALUATION: Tells the buffer to discard tracking frames older than 0.2 seconds
           observation_persistence: 0.2   
+          # Ensures that 'inf' values from your filter actively trigger clearance loops
           inf_is_valid: true
 
       wall_inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
-        cost_scaling_factor: 3.0
-        inflation_radius: 0.40
-
-# ==============================================================================
-# HUMAN COSTMAP: COMPLETELY PARALLEL AND ISOLATED
-# ==============================================================================
-human_costmap:
-  human_costmap:
-    ros__parameters:
-      enable_stamped_cmd_vel: True
-      update_frequency: 10.0      
-      publish_frequency: 5.0     
-      global_frame: odom
-      robot_base_frame: base_link
-      rolling_window: true
-      width: 3
-      height: 3
-      resolution: 0.05
-      robot_radius: 0.22
-      always_send_full_costmap: True
-
-      plugins: ["human_tracker_layer", "human_inflation_layer"]
+        cost_scaling_factor: 2.5
+        inflation_radius: 0.5
 
       human_tracker_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
-        combination_method: 1       
+        combination_method: 1       # Force aggressive raytrace clearing
         observation_sources: human_scan
         human_scan:
           topic: /fusion/human_scan
@@ -279,17 +251,22 @@ human_costmap:
           clearing: True
           marking: True
           data_type: "LaserScan"
+          # Crucial for moving targets: push the raytrace slightly further out 
+          # so clear space behind a moving person is immediately wiped blank.
           raytrace_max_range: 4.0   
           raytrace_min_range: 0.0
           obstacle_max_range: 2.5
           obstacle_min_range: 0.0
+
+          # FORCE RE-EVALUATION: Tells the buffer to discard tracking frames older than 0.2 seconds
           observation_persistence: 0.2   
+          # Ensures that 'inf' values from your filter actively trigger clearance loops
           inf_is_valid: true
 
       human_inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 5.0
-        inflation_radius: 0.80 # 80cm dynamic protection zone!
+        inflation_radius: 0.7
 
 global_costmap:
   global_costmap:
@@ -301,7 +278,7 @@ global_costmap:
       publish_frequency: 2.0      # Up from 1.0
       global_frame: map
       robot_base_frame: base_link
-      robot_radius: 0.22
+      robot_radius: 0.2
       resolution: 0.05
       track_unknown_space: true
       plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
@@ -329,7 +306,7 @@ global_costmap:
       inflation_layer:
         plugin: "nav2_costmap_2d::InflationLayer"
         cost_scaling_factor: 3.0
-        inflation_radius: 0.7
+        inflation_radius: 0.2
       always_send_full_costmap: True
 
 # The yaml_filename does not need to be specified since it going to be set by defaults in launch.

@@ -20,8 +20,8 @@ class DestinationHandler(object):
         self.tracked_destinations = []
 
         # tag stuff
-        self.tag_rad = 0.1              # min space between tags in m
-        self.valid_tags = [10,11,12,13,14,15,16,17,18,19]
+        self.tag_rad = 0.3              # min space between tags in m
+        self.valid_tags = [10,11,12,13,14,15]
         self._aruco_dict_id = aruco_dict
         self._aruco_dictionary = cv2.aruco.getPredefinedDictionary(aruco_dict)
         self._aruco_params = cv2.aruco.DetectorParameters_create()

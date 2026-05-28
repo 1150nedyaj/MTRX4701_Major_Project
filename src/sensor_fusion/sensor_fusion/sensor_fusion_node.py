@@ -71,6 +71,8 @@ class SensorFusionNode(Node):
     def __init__(self):
         super().__init__("sensor_fusion")
 
+        self.exclusion_rad = 0.3
+
         # --- Signature Queue Paramters
         radar_stale_ms = 500
         lidar_stale_ms = 100 # make smaller?
@@ -341,8 +343,16 @@ class SensorFusionNode(Node):
             if dist <= self.fusion_assoc_mahal:
                 fused.append(a+r)
 
-        # try to match up fused with people
+        # sderflkjweras'fp;
+        good_fused = []
         for f in fused:
+            d = math.sqrt(f.x**2 + f.y**2)
+            if d > self.exclusion_rad:
+                good_fused.append(f)
+    
+
+        # try to match up fused with people
+        for f in good_fused:
             nearest = self.nearest_signature(f, fusion_queue.values)
 
             if nearest is not None and nearest[1] <= self.human_assoc_mahal:

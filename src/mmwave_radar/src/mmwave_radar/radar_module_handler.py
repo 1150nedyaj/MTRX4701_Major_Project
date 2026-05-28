@@ -58,15 +58,18 @@ class RadarModuleHandler(object):
         signatures = []
         for d in detections:
             # was getting false positives at the edges
-            if abs(d.angle) > 49:
-                    continue
+            if abs(d.angle) > 45:
+                continue
             
+            if d.distance < 400:
+                continue
+
             # annoying little fp at front
             if abs(d.angle) > 40 and d.distance < 400:
                 continue
 
             # all tests passed; bring it through
-            self._node.get_logger().info(str(d))
+            # self._node.get_logger().info(str(d))
             signatures.append(RadarSignature.from_RD03DMessage(d))
 
         return signatures

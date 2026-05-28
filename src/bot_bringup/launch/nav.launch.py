@@ -36,14 +36,6 @@ def generate_launch_description():
 
     params_file = path.join(bringup_dir, 'config', 'human_detection_nav2.yaml')
 
-    human_costmap_node = Node(
-        package='nav2_costmap_2d',
-        executable='nav2_costmap_2d',
-        name='human_costmap',
-        output='screen',
-        parameters=[params_file, {'use_sim_time': use_sim_time}],
-    )
-
     # Include the standard Nav2 stack
     # Note: We must tell Nav2's lifecycle manager to control our new node!
     nav_launch = IncludeLaunchDescription(
@@ -54,8 +46,6 @@ def generate_launch_description():
             'use_sim_time': use_sim_time,
             'params_file': params_file,
             'autostart': 'true',
-            # OVERRIDE THE LIFECYCLE LIST: Injects human_costmap into the standard sequence
-            'container_name': 'nav2_container',
         }.items()
     )
 
