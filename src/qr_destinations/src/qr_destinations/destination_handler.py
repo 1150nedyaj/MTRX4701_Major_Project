@@ -21,9 +21,11 @@ class DestinationHandler(object):
 
         # tag stuff
         self.tag_rad = 0.1              # min space between tags in m
+        self.valid_tags = [10,11,12,13,14,15,16,17,18,19]
         self._aruco_dict_id = aruco_dict
         self._aruco_dictionary = cv2.aruco.getPredefinedDictionary(aruco_dict)
         self._aruco_params = cv2.aruco.DetectorParameters_create()
+        
 
         # plotting (scheming even)
         # plt.ion()
@@ -69,11 +71,15 @@ class DestinationHandler(object):
             u_coords = sorted_img_pts[:, 0]
             tag_mask = (u_coords >= u_min) & (u_coords <= u_max)   # maybe do expansion along line? 
             tag_bounded_points = sorted_xy[tag_mask]
-            
+
+            if tag_id not in self.valid_tags:
+                self._node.get_logger().warn(f"Detected non-tracked tag -> {tag_id}")
+                continue        
+
             if len(tag_bounded_points) == 0:
                 self._node.get_logger().warn(f"Hallucinated Tag {tag_id}; no points were found")
                 continue
-                
+
             # current method for normal vector assumes 1+ lidar pts bounded
             d = TagDetection(tag_id, tag_mask, tag_bounded_points)
             d.normal_vector = self._build_normal_vector_from_pts(tag_bounded_points)

@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+
+"""
+This is just a testing node, shows one way to send advertised
+destinations through to the goal pose topic
+
+Author: Claude Opus 4.7 --> Prompted by Jeremy Fox
+"""
+
 import rclpy
 from rclpy.node import Node
 

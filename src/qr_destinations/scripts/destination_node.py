@@ -33,7 +33,9 @@ class RadarModuleNode(Node):
         self.tf_listener = TransformListener(self.tf_buffer, self)
         self.tf_check_timer = self.create_timer(0.05, self.get_map_tf)
 
+        destination_pub_period = 5
         self.destination_pub = self.create_publisher(DestinationListMsg, '~/list', 3)
+        self.destination_timer = self.create_timer(destination_pub_period, self.destination_timer_callback)
 
         self.qr_location_subs = [
             Subscriber(self, PointCloud, 'pointcloud2d'),
@@ -92,6 +94,9 @@ class RadarModuleNode(Node):
             import traceback
             self.get_logger().error(traceback.format_exc())
 
+    def destination_timer_callback(self):
+        if len(self.qr_handler.tracked_destinations) > 0:
+            self.qr_handler._publish_tracked()
 
     def _is_fresh_tf(self):
         return True     
