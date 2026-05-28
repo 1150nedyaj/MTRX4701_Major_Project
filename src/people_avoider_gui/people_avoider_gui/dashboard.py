@@ -45,6 +45,7 @@ class DashboardWindow(QMainWindow):
     goal_requested = pyqtSignal(str)
     valid_goals_received = pyqtSignal(list)
     plan_received = pyqtSignal(list)
+    chosen_landmark_distances_received = pyqtSignal(float, float)
 
     def __init__(self):
         super().__init__()
@@ -62,7 +63,7 @@ class DashboardWindow(QMainWindow):
         self.destinations_received.connect(self.update_destinations)
         self.valid_goals_received.connect(self.update_goal_buttons)
         self.plan_received.connect(self.update_plan_points)
-
+        self.chosen_landmark_distances_received.connect(self.update_chosen_landmark_graph)
 
         #Stuff to change the layout
         self.setWindowTitle("People Avoider 2000")
@@ -95,6 +96,8 @@ class DashboardWindow(QMainWindow):
             y_label="Distance",
             y_units="m",
         )
+        
+        self.chosen_path_curve = self.graph2.plot([], [])
 
         self.graph3, self.speed_curve = self.make_line_graph(
             "Speed vs Time",
@@ -121,6 +124,13 @@ class DashboardWindow(QMainWindow):
         self.speed_sample = 0
 
         self.chosen_tag = None
+        
+        #For path distance plot
+        self.chosen_sample = 0
+
+        self.chosen_x = deque(maxlen=200)
+        self.chosen_direct_y = deque(maxlen=200)
+        self.chosen_path_y = deque(maxlen=200)
 
         #This makes all the buttons that changes between graphs
         graphbuttonslayout = QGridLayout()
@@ -417,10 +427,27 @@ class DashboardWindow(QMainWindow):
             y=[p[1] for p in people],
         )
 
+
+    def update_chosen_landmark_graph(self, direct_distance, path_distance):
+        self.chosen_sample += 1
+
+        self.chosen_x.append(self.chosen_sample)
+        self.chosen_direct_y.append(direct_distance)
+        self.chosen_path_y.append(path_distance)
+
+        self.chosen_direct_curve.setData(
+            list(self.chosen_x),
+            list(self.chosen_direct_y),
+        )
+
+        self.chosen_path_curve.setData(
+            list(self.chosen_x),
+            list(self.chosen_path_y),
+        )
     def update_destinations(self, destinations):    
         self.goal_scatter.setData(
-            x=[destination[1] for destination in destinations],
-            y=[destination[2] for destination in destinations],
+            x=[destination[2] for destination in destinations],
+            y=[destination[3] for destination in destinations],
         )
 
         for label in self.goal_labels:
@@ -428,7 +455,7 @@ class DashboardWindow(QMainWindow):
 
         self.goal_labels.clear()
 
-        for name, x, y in destinations:
+        for name, tag, x, y in destinations:
             label = pg.TextItem(
                 text=name,
                 color=(0, 255, 100),
@@ -441,7 +468,7 @@ class DashboardWindow(QMainWindow):
         names = []
         distances = []
 
-        for name, x, y in destinations:
+        for name, tag, x, y in destinations:
             names.append(name)
             distances.append(math.sqrt(x ** 2 + y ** 2))
 
@@ -502,6 +529,16 @@ class DashboardNode(Node):
             "E": 14,
             "F": 15,
         }
+
+        self.tag_labels = {
+            tag: label
+            for label, tag in self.goal_tags.items()
+        }
+        
+        #Distance to goal plots
+        self.chosen_goal_tag = None
+        self.latest_plan_points = []
+
 
         self.goal_pub = self.create_publisher(PoseStamped, "/goal_pose", 3)
         self.window.goal_requested.connect(self.publish_goal_pose)
@@ -622,10 +659,11 @@ class DashboardNode(Node):
         for destination in msg.destinations:
             name = destination.name
             tag = int(destination.tag)
+            label = self.tag_labels.get(tag, name)
             x_global = destination.pose.position.x
             y_global = destination.pose.position.y
             self.destination_poses[tag] = destination.pose
-            self.global_destinations.append((name, x_global, y_global))
+            self.global_destinations.append((label, name, x_global, y_global))
             
         self.convert_global_destinations_to_graph()
 
@@ -641,10 +679,12 @@ class DashboardNode(Node):
 
     def plan_callback(self, msg):
         points = []
+        self.latest_plan_points = []
 
         for pose_stamped in msg.poses:
             x_global = pose_stamped.pose.position.x
             y_global = pose_stamped.pose.position.y
+            self.latest_plan_points.append((x_global, y_global))
 
             dx = x_global - self.robot_x
             dy = y_global - self.robot_y
@@ -658,12 +698,13 @@ class DashboardNode(Node):
             points.append((graph_x, graph_y))
 
         self.window.plan_received.emit(points)
+        self.update_chosen_landmark_distances()
 
 
     def convert_global_destinations_to_graph(self):
         destinations = []
 
-        for name, x_global, y_global in self.global_destinations:
+        for label, name, x_global, y_global in self.global_destinations:
             dx = x_global - self.robot_x
             dy = y_global - self.robot_y
 
@@ -673,10 +714,10 @@ class DashboardNode(Node):
             graph_x = -left
             graph_y = forward
 
-            destinations.append((name, graph_x, graph_y))
+            destinations.append((label, name, graph_x, graph_y))
 
         if destinations:
-            closest = min(math.sqrt(x ** 2 + y ** 2) for _, x, y in destinations)
+            closest = min(math.sqrt(x ** 2 + y ** 2) for _, _, x, y in destinations)
         else:
             closest = float("nan")
 
@@ -696,11 +737,63 @@ class DashboardNode(Node):
             tag = self.goal_tags[goal_name]
             if tag not in self.destination_poses:
                 return
+
+            self.chosen_goal_tag = tag
             goal_msg.pose = self.destination_poses[tag]
 
         self.goal_pub.publish(goal_msg)
 
+    def update_chosen_landmark_distances(self):
+        if self.chosen_goal_tag is None:
+            return
 
+        if self.chosen_goal_tag not in self.destination_poses:
+            return
+
+        goal_pose = self.destination_poses[self.chosen_goal_tag]
+
+        dx = goal_pose.position.x - self.robot_x
+        dy = goal_pose.position.y - self.robot_y
+
+        direct_distance = math.sqrt(dx ** 2 + dy ** 2)
+        path_distance = self.get_remaining_path_distance()
+
+        self.window.chosen_landmark_distances_received.emit(
+            direct_distance,
+            path_distance,
+        )
+
+    def get_remaining_path_distance(self):
+        if not self.latest_plan_points:
+            return float("nan")
+
+        closest_index = 0
+        closest_distance = float("inf")
+
+        for i, point in enumerate(self.latest_plan_points):
+            x, y = point
+            distance = math.sqrt(
+                (x - self.robot_x) ** 2 +
+                (y - self.robot_y) ** 2
+            )
+
+            if distance < closest_distance:
+                closest_distance = distance
+                closest_index = i
+
+        path_distance = closest_distance
+
+        for i in range(closest_index, len(self.latest_plan_points) - 1):
+            x1, y1 = self.latest_plan_points[i]
+            x2, y2 = self.latest_plan_points[i + 1]
+
+            path_distance += math.sqrt(
+                (x2 - x1) ** 2 +
+                (y2 - y1) ** 2
+            )
+
+        return path_distance
+    
 def main():
     rclpy.init()
 
