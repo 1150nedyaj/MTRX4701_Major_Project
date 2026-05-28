@@ -2,8 +2,6 @@ from dataclasses import dataclass
 import numpy as np
 from copy import deepcopy
 
-from visualization_msgs.msg import Marker
-
 @dataclass
 class Signature:
     def __init__(self, x:float, y:float, flat_covariance, t_birth_ms:float):
@@ -33,7 +31,6 @@ class Signature:
 class RadarPersonSignature(Signature):
     def __init__(self, x, y, flat_covariance, t):
         super().__init__(x, y, flat_covariance, t)
-
 
 @dataclass
 class LidarAnkleSignature(Signature):
