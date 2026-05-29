@@ -1,10 +1,14 @@
 """
-
+MTRX4701 2026 Assignment 4
+File: rd03d.py
 Author: Core Electronics
 
 This file was taken directly from the Core Electronics Tutorial for setting up and interfacing with the 
 RD03d mmWave radar module.
 
+I wrote code that does the exact same thing for the older modules.
+When we went to change I saw this applies the same methods, and figured
+it's best not to re-invent the wheel.
 """
 
 

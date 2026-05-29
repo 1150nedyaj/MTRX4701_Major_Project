@@ -1,16 +1,21 @@
-from serial import Serial
+"""
+MTRX4701 2026 Assignment 4
+File: radar_module_handler.py
+Author(s): 530 499 451
+
+Manages RD03D mmWave Radar Modules.
+Takes the parsed output from the module and does some
+filtering on the detections to get rid of known garbage readings.
+"""
+
 import serial.tools.list_ports
 from threading import Lock
-import binascii
 import time
-import struct
-from dataclasses import dataclass
 
-import rclpy
 from rclpy.node import Node
 
 from mmwave_radar.rd03d import RD03D
-from mmwave_radar.types import RD03DMessage, RadarSignature
+from mmwave_radar.types import RadarSignature
 
 
 class RadarModuleHandler(object):
@@ -18,7 +23,7 @@ class RadarModuleHandler(object):
         self._node = node
         self._Lock = Lock()
 
-        ## Check interface is good
+        # interface is good?
         if not self._serial_interface_up(interface):
             self._node.get_logger().error(f"Can't find {interface}!")
             raise RuntimeError(f"Interface {interface} is not up.")
@@ -26,28 +31,12 @@ class RadarModuleHandler(object):
             self._node.get_logger().info(f"Interface {interface} is up!")
         self._interface = interface
 
-        ## Setup port and bringup radar
         self.radar = RD03D(uart_port=interface)
-
-    
-    @staticmethod
-    def millis():
-        return int(time.time() * 1000)
-
-    def _serial_interface_up(self, interface):
-        ports = serial.tools.list_ports.comports()
-        port_names = [port for port, desc, hwid in ports]
-
-        if interface in port_names:
-            return True
-        else:
-            self._node.get_logger().info("Availiable Interfaces... ")
-
-            for i in port_names:
-                self._node.get_logger().info(f"\t-> {i}")
-        return False
     
     def get_signatures(self):
+        """
+        Public method to get radar's detections (that are worth seeing)
+        """
         if self.radar.update():
             targets = [self.radar.get_target(n) for n in range(1,4)]
             detections = [t for t in targets if t.detection == True]
@@ -55,6 +44,7 @@ class RadarModuleHandler(object):
             self._node.get_logger().warning("Radar returned no detections!")
             return []
         
+        # skip if the reading looks like a known false positive
         signatures = []
         for d in detections:
             # was getting false positives at the edges
@@ -69,10 +59,26 @@ class RadarModuleHandler(object):
                 continue
 
             # all tests passed; bring it through
-            # self._node.get_logger().info(str(d))
             signatures.append(RadarSignature.from_RD03DMessage(d))
 
         return signatures
+    
+    def _serial_interface_up(self, interface):
+        ports = serial.tools.list_ports.comports()
+        port_names = [port for port, desc, hwid in ports]
+
+        if interface in port_names:
+            return True
+        else:
+            self._node.get_logger().info("Availiable Interfaces... ")
+
+            for i in port_names:
+                self._node.get_logger().info(f"\t-> {i}")
+        return False
+
+    @staticmethod
+    def millis():
+        return int(time.time() * 1000)
 
 
 

@@ -1,3 +1,14 @@
+"""
+MTRX4701 2026 Assignment 4
+File: lidar_project_to_image.py
+Author(s): Adrian Le
+Edited: 530 499 451
+
+Brought over from Assignments 2 and 3, 
+gives LiDAR points that fall in a given part of an image.
+
+"""
+
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
@@ -27,9 +38,7 @@ class LidarProject():
             self.img, self.camera_k, self.camera_dist, None, self.new_camera_k)
 
         self.img_pts, _, self.lidar_pts = self.lidar_projection_pipeline(lidar)
-        # print("STAGE 7: pipeline done", flush=True, file=sys.stderr)
         self.draw_lidar_points()
-        # print("STAGE 8: draw done", flush=True, file=sys.stderr)
     
     def plot_top_down_view(self, cam_lidar_h):
         # extract coordinates
@@ -43,13 +52,12 @@ class LidarProject():
         plt.ylabel("Y (meters)")
         plt.title("LiDAR Top View")
 
-        plt.axis("equal")   # VERY IMPORTANT → preserves geometry
+        plt.axis("equal")
         plt.grid()
 
         plt.show()
 
     def lidar_to_image_projection(self, rel_points, image):
-        # print("STAGE 1: entry", flush=True, file=sys.stderr)
         h, w = self.img.shape[:2]
         pts = rel_points
         lidar_pts = pts[:, :2]
@@ -58,22 +66,18 @@ class LidarProject():
         depth_mask = (lidar_h[:, 0] > 0) & (lidar_h[:, 0] < 2.5)
         side_mask  = (lidar_h[:, 1] > -1.5) & (lidar_h[:, 1] < 1.5)
         front_mask = depth_mask & side_mask
-        # print("STAGE 2: masks done", flush=True, file=sys.stderr)
         
         cam_lidar_h = (self.icp_result @ lidar_h.T).T
         R_lidar_to_cam = np.array([[0,-1,0],[0,0,-1],[1,0,0]])
         cam_pts = (R_lidar_to_cam @ cam_lidar_h.T).T
         cam_pts = cam_pts[front_mask]
         lidar_h = lidar_h[front_mask]
-        # print(f"STAGE 3: cam_pts shape {cam_pts.shape}", flush=True, file=sys.stderr)
         
         if len(cam_pts) == 0:
             empty = np.empty((0, 2), dtype=np.float32)
             return empty, empty, lidar_h
 
-        # print("STAGE 4: about to projectPoints", flush=True, file=sys.stderr)
         img_pts, _ = cv2.projectPoints(cam_pts, np.zeros(3), np.zeros(3), self.new_camera_k, self.new_camera_dist)
-        # print("STAGE 5: projectPoints done", flush=True, file=sys.stderr)
         
         img_pts = img_pts.reshape(-1, 2)
         valid_mask = (
@@ -83,7 +87,6 @@ class LidarProject():
         img_pts = img_pts[valid_mask]
         cam_pts = cam_pts[valid_mask]
         lidar_h = lidar_h[valid_mask]
-        # print("STAGE 6: returning", flush=True, file=sys.stderr)
         return img_pts, cam_pts, lidar_h
 
     def lidar_projection_pipeline(self, lidar):

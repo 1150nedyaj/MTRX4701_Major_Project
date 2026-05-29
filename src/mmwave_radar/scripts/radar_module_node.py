@@ -1,4 +1,21 @@
 #!/usr/bin/env python3
+
+"""
+MTRX4701 2026 Assignment 4
+File: radar_module_node.py
+Author(s): 530 499 451
+
+This node exposes a single mmWave radar module to the ROS middleware, 
+handing configuration parameters through to the actual RadarModuleHandler class. 
+
+While it does publish a custom message for radar detections through the '/detections' topic,
+it also pushes them through '/pose' as a Pose With Covariance. This pose topic is just intended 
+to be used for debugging, while the custom message gets used in any computation.
+
+All information about how the module is orientated is handled by the array_transforms_node.
+"""
+
+
 import numpy as np
 import sys
 import math
@@ -18,6 +35,10 @@ from mmwave_radar.radar_module_handler import RadarModuleHandler
 
 
 class RadarModuleNode(Node):
+    """
+    Sets up a radar, passing through id and UART interface
+    """
+
     def __init__(self) -> None:
         super().__init__("radar_module_node")
 
@@ -34,13 +55,6 @@ class RadarModuleNode(Node):
         self.module_frame = f'radar{self.node_id}'
         self.radar_handler = RadarModuleHandler(self, self.serial_interface)
 
-        # tf_collection_delay = 0.5
-        # self.transform_collected = False
-        # self.radar_pitch = -1.0
-        # self._tf_buffer = Buffer()
-        # self._tf_listener = TransformListener(self._tf_buffer, self)
-        # self._tf_timer = self.create_timer(tf_collection_delay, self.get_module_pitch)
-
         self.reading_publish_period = 0.15 # s -> sensor sample freq. is 10Hz
         self._radar_report_pub = self.create_publisher(StampedRadarDetections, "~/detections", 1)
         self._radar_detect_debug_pub = self.create_publisher(PoseWithCovarianceStamped, "~/pose", 20)
@@ -48,9 +62,6 @@ class RadarModuleNode(Node):
         
 
     def pub_radar_detections(self):
-        # if self.transform_collected == False:
-        #     self.get_logger().info(f"No tf for module; waiting...")
-        #     return
 
         signatures = self.radar_handler.get_signatures()
         
@@ -86,29 +97,9 @@ class RadarModuleNode(Node):
 
         self._radar_report_pub.publish(report_msg)
 
-    # def get_module_pitch(self):
-    #     try:
-    #         t = self._tf_buffer.lookup_transform(
-    #             'base_link',
-    #             self.module_frame,
-    #             self.get_clock().now())
-    #     except TransformException as ex:
-    #         self.get_logger().error(
-    #             f'Could not transform {'base_link'} to {self.module_frame}: {ex}')
-    #         sys.exit()
-        
-    #     # pull out pitch from quaternion
-    #     mQ = t.transform.rotation
-    #     self.radar_pitch = math.asin(2 * (mQ.w * mQ.y - mQ.z * mQ.x))
-    #     self.get_logger().info(f"Radar has pitch of {round(np.degrees(self.radar_pitch), 4)} degrees.")
-
-    #     # static tf; only need to run this once
-    #     self.transform_collected = True
-    #     self._tf_timer.destroy()
-
 
     def pub_radar_pose(self, s):
-        # debugf
+        # debug
         pose_msg = PoseWithCovarianceStamped()
 
         pose_msg.header.stamp = self.get_clock().now().to_msg()

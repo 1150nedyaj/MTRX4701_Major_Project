@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
 
+"""
+MTRX4701 2026 Assignment 4
+File: array_transforms_node.py
+Author(s): 530 499 451
+
+Does a one-shot publish of the static transforms for each of the 
+radar modules defined in the supplied radar configuration yaml.
+"""
+
 import math
 import sys
 import os
@@ -14,34 +23,9 @@ from geometry_msgs.msg import TransformStamped
 
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 
-
-
-def quaternion_from_euler(ai, aj, ak):
-    ai /= 2.0
-    aj /= 2.0
-    ak /= 2.0
-    ci = math.cos(ai)
-    si = math.sin(ai)
-    cj = math.cos(aj)
-    sj = math.sin(aj)
-    ck = math.cos(ak)
-    sk = math.sin(ak)
-    cc = ci*ck
-    cs = ci*sk
-    sc = si*ck
-    ss = si*sk
-
-    q = np.empty((4, ))
-    q[0] = cj*sc - sj*cs
-    q[1] = cj*ss + sj*cc
-    q[2] = cj*cs - sj*sc
-    q[3] = cj*cc + sj*ss
-
-    return q
-
 class RadarArrayStaticFramePublisher(Node):
     """
-    Broadcast Pose data for mmwave radar modules over TF2
+    Oneshot Broadcast Pose data for mmwave radar modules over TF2
     """
     def __init__(self, array_config_path):
         super().__init__('static_turtle_tf2_broadcaster')
@@ -79,7 +63,7 @@ class RadarArrayStaticFramePublisher(Node):
         t.transform.translation.x = float(transformation['t_x'])
         t.transform.translation.y = float(transformation['t_y'])
         t.transform.translation.z = float(transformation['t_z'])
-        quat = quaternion_from_euler(
+        quat = self.quaternion_from_euler(
             float(transformation['roll']), float(transformation['pitch']), float(transformation['yaw']))
         t.transform.rotation.x = quat[0]
         t.transform.rotation.y = quat[1]
@@ -88,7 +72,29 @@ class RadarArrayStaticFramePublisher(Node):
 
         self.tf_static_broadcaster.sendTransform(t)
 
+    @staticmethod
+    def quaternion_from_euler(ai, aj, ak):
+        ai /= 2.0
+        aj /= 2.0
+        ak /= 2.0
+        ci = math.cos(ai)
+        si = math.sin(ai)
+        cj = math.cos(aj)
+        sj = math.sin(aj)
+        ck = math.cos(ak)
+        sk = math.sin(ak)
+        cc = ci*ck
+        cs = ci*sk
+        sc = si*ck
+        ss = si*sk
 
+        q = np.empty((4, ))
+        q[0] = cj*sc - sj*cs
+        q[1] = cj*ss + sj*cc
+        q[2] = cj*cs - sj*sc
+        q[3] = cj*cc + sj*ss
+
+        return q
 
 def main():
     try:

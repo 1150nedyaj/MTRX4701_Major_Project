@@ -1,3 +1,17 @@
+"""
+MTRX4701 2026 Assignment 4
+File: types.py
+Author(s): 530 499 451
+
+Custom datatypes for qr_destinations.
+They're both very similiar, destinations are essentially confirmed and stored
+detections.
+
+Detections hold the actual data used to build a destination pose,
+Destinations are the dual of the custom message type.
+
+"""
+
 from dataclasses import dataclass
 import numpy as np
 from copy import deepcopy
@@ -7,6 +21,12 @@ from geometry_msgs.msg import Pose
 
 @dataclass
 class Destination:
+    """
+    What gets put into a the custom destination messages.
+    Class is used when managing multiple destination in an
+    enviroment.
+    """
+
     tag_id: int
     tag_centre: np.ndarray
     wall_normal_vector: np.array
@@ -45,8 +65,6 @@ class Destination:
 
         return deepcopy(d_msg)
 
-
-
     @property
     def destination_point(self):
         return self.tag_centre + self._wall_offset * self.wall_normal_vector
@@ -54,6 +72,10 @@ class Destination:
 
 @dataclass
 class TagDetection:
+    """
+    Associates measured LiDAR points to a tag that's been seen.
+    """
+
     tag_id: int 
     
     bounded_lidar_points: np.ndarray 

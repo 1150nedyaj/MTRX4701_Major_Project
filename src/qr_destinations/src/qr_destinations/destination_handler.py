@@ -1,3 +1,18 @@
+"""
+MTRX4701 2026 Assignment 4
+File: destination_handler.py
+Author(s): 530 499 451
+
+Recognises, locates and publishes the position AruCo tags in the robot's enviroment,
+generating a navigable goal pose for the robot to be sent to. 
+
+Only looks for tags within a certain range as there were issues with hallucination.
+
+Keeps track of how many LiDAR points were used when recording a destination and 
+generating the goal pose. If it can build the same destination with more LiDAR points, 
+it will.
+"""
+
 import cv2
 import numpy as np
 from math import dist
@@ -7,7 +22,7 @@ import sys
 
 import qr_destinations.lidar_project_to_image as lpi
 from qr_destinations.types import Destination, TagDetection
-from destination_msgs.msg import DestinationMsg, DestinationListMsg
+from destination_msgs.msg import DestinationListMsg
 
 class DestinationHandler(object):
     def __init__(self, 
@@ -32,12 +47,12 @@ class DestinationHandler(object):
         # self._fig, self._ax_map = plt.subplots(1, 1, figsize=(7, 7))
 
     def find_tags(self, lidar_pts, img, tf):
-        # self._node.get_logger().info(f"find_tags: pts={lidar_pts.shape}, img={img.shape}, dtype={img.dtype}")
-
+        """
+        The 'main' for this class.
+        """
 
         # bring lidar points into camera frame
         lidar_project = lpi.LidarProject(img, lidar_pts)
-        # print("STAGE 9: LidarProject built", flush=True, file=sys.stderr)
 
         undistorted_img = lidar_project.img
         img_frame_pts = lidar_project.img_pts
@@ -45,11 +60,9 @@ class DestinationHandler(object):
 
         # Extract AruCo tags
         img_grey = cv2.cvtColor(undistorted_img, cv2.COLOR_BGR2GRAY)
-        # print("STAGE 10: cvtColor done", flush=True, file=sys.stderr)
         corners_list, ids, _ = cv2.aruco.detectMarkers(
             img_grey, self._aruco_dictionary, parameters=self._aruco_params
         )
-        # print("STAGE 11: detectMarkers done", flush=True, file=sys.stderr)
         if ids is None:
             # print("No tags found in frame")
             return
@@ -262,8 +275,6 @@ class DestinationHandler(object):
             v_normal = -v_normal
 
         return v_normal
-
-
 
     @staticmethod
     def yaw_from_quaternion(q) -> float:

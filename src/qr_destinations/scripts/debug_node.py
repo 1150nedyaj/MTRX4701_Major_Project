@@ -1,4 +1,14 @@
 #!/usr/bin/env python3
+
+"""
+MTRX4701 2026 Assignment 4
+File: debug_node.py
+Author(s): 530 499 451
+
+Used for displaying the destinations being advertised when the destination_node is being
+run on the turtlebot.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -6,10 +16,6 @@ import rclpy
 from rclpy.node import Node
 
 from destination_msgs.msg import DestinationListMsg
-
-
-# from std_msgs.msg import Header
-# from geometry_msgs.msg import PoseWithCovarianceStamped
 
 class RadarModuleNode(Node):
     def __init__(self) -> None:

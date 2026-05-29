@@ -1,4 +1,13 @@
 #!/usr/bin/env python3
+
+"""
+MTRX4701 2026 Assignment 4
+File: destination_node.py
+Author(s): 530 499 451
+
+
+"""
+
 import numpy as np
 import sys
 import math
@@ -18,8 +27,7 @@ from nav_msgs.msg import Odometry
 from destination_msgs.msg import DestinationListMsg
 from qr_destinations.destination_handler import DestinationHandler
 
-# from std_msgs.msg import Header
-# from geometry_msgs.msg import PoseWithCovarianceStamped
+
 
 class RadarModuleNode(Node):
     def __init__(self) -> None:
