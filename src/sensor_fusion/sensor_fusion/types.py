@@ -16,8 +16,8 @@ PERSON_RAD = 0.15   # std. deviation of person postition from LiDAR Ankle Detect
 @dataclass
 class Signature:
     """
-    An (x,y) position with covariance values and an age (ms)
-    functionality. Is treated more or less as an abstract base class.
+    An (x,y) position with covariance values and an age (ms) functionality. 
+    Is treated basically as an abstract base class.
     """
     x: float
     y: float
@@ -93,6 +93,8 @@ class SignatureQueue:
         self.queue.append(deepcopy(signature))
 
     def clean_out(self, current_t_ms):
+
+        # not entirely sure if this is handling the deepcopy alloc properly???
         before = len(self.queue)
         self.queue = [s for s in self.queue if s.age(current_t_ms) <= self.stale_ms]
         c_rem = before - len(self.queue)
