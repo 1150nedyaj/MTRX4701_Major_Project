@@ -2,7 +2,7 @@
 MTRX4701 2026 Assignment 4
 File: lidar_project_to_image.py
 Author(s): Adrian Le
-Edited: 530 499 451
+Edited: Jeremy Fox
 
 Brought over from Assignments 2 and 3, 
 gives LiDAR points that fall in a given part of an image.

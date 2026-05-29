@@ -1,7 +1,7 @@
 """
 MTRX4701 2026 Assignment 4
 File: types.py
-Author(s): 530 499 451
+Author(s): Jeremy Fox
 
 Custom datatypes for qr_destinations.
 They're both very similiar, destinations are essentially confirmed and stored

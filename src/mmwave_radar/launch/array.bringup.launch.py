@@ -1,3 +1,18 @@
+"""
+MTRX4701 2026 Assignment 4
+File: array.bringup.launch.py
+Author(s): Jeremy Fox
+
+Launches an array specified in a .yaml
+
+Firstly spin up the static transform publisher to orient all of the modules
+in relation to a frame supplied in the .yaml. In this case it's using
+base_link as it's easy to physically locate in a 3D Model of the Turtlebot.
+
+Then For each radar in the .yaml, spin up it's own node with a namespace based
+on the identifier for the radar. Passing through serial interface to use as well.
+"""
+
 import os
 import yaml
 

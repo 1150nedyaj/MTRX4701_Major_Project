@@ -3,7 +3,7 @@
 """
 MTRX4701 2026 Assignment 4
 File: debug_node.py
-Author(s): 530 499 451
+Author(s): Jeremy Fox
 
 Used for displaying the destinations being advertised when the destination_node is being
 run on the turtlebot.

@@ -1,7 +1,7 @@
 """
 MTRX4701 2026 Assignment 4
 File: types.py
-Author(s): 530 499 451
+Author(s): Jeremy Fox
 
 These are the custom types for the radar package.
 RD03DMessage's get built from the radar's output, while the RadarSignature

@@ -3,14 +3,19 @@
 """
 MTRX4701 2026 Assignment 4
 File: destination_node.py
-Author(s): 530 499 451
+Author(s): Jeremy Fox
 
+Feeds images, LiDAR data and robot transforms from the ROS2 layer into the
+DestinationHandler.
+
+Hands a publisher through to the DestinationHandler so it can update the 
+advertised destinations. 
+
+Also re-publishes the destinations every 5 seconds.
 
 """
 
 import numpy as np
-import sys
-import math
 from cv_bridge import CvBridge
 
 import rclpy
@@ -21,12 +26,11 @@ from tf2_ros import TransformException
 from rclpy.time import Time
 
 
-from sensor_msgs.msg import PointCloud, CompressedImage, Image
+from sensor_msgs.msg import PointCloud, Image
 from nav_msgs.msg import Odometry
 
 from destination_msgs.msg import DestinationListMsg
 from qr_destinations.destination_handler import DestinationHandler
-
 
 
 class RadarModuleNode(Node):
@@ -84,9 +88,6 @@ class RadarModuleNode(Node):
         if not self.tf_collection_started:
             return
 
-        if not self._is_fresh_tf():
-            return  
-
         try:
             pts = np.array([[p.x, p.y] for p in pointcloud_msg.points], dtype=float)
             img = self._bridge.imgmsg_to_cv2(image_msg, desired_encoding="bgr8").copy()
@@ -105,24 +106,6 @@ class RadarModuleNode(Node):
     def destination_timer_callback(self):
         if len(self.qr_handler.tracked_destinations) > 0:
             self.qr_handler._publish_tracked()
-
-    def _is_fresh_tf(self):
-        return True     
-
-        tf_stamp_millis = (
-            self.last_tf.header.stamp.sec * 1000.0 +
-            self.last_tf.header.stamp.nanosec * 1e-6
-        )
-        now_millis = self.millis_from_rclpy_time(self.get_clock().now())
-
-        age = now_millis - tf_stamp_millis
-        if age > self.tf_freshness_window:
-            self.get_logger().warn(f"Last tf is stale by "
-                                   f"{(now_millis - tf_stamp_millis) - self.tf_freshness_window}"
-                                   " millis")
-            return False
-        
-        return True
 
     @staticmethod
     def millis_from_rclpy_time(rclpy_time):

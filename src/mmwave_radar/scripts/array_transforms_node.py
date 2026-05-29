@@ -3,7 +3,7 @@
 """
 MTRX4701 2026 Assignment 4
 File: array_transforms_node.py
-Author(s): 530 499 451
+Author(s): Jeremy Fox
 
 Does a one-shot publish of the static transforms for each of the 
 radar modules defined in the supplied radar configuration yaml.

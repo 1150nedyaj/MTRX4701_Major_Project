@@ -3,7 +3,7 @@
 """
 MTRX4701 2026 Assignment 4
 File: radar_module_node.py
-Author(s): 530 499 451
+Author(s): Jeremy Fox
 
 This node exposes a single mmWave radar module to the ROS middleware, 
 handing configuration parameters through to the actual RadarModuleHandler class. 

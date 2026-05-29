@@ -1,7 +1,7 @@
 """
 MTRX4701 2026 Assignment 4
 File: destination_handler.py
-Author(s): 530 499 451
+Author(s): Jeremy Fox
 
 Recognises, locates and publishes the position AruCo tags in the robot's enviroment,
 generating a navigable goal pose for the robot to be sent to. 

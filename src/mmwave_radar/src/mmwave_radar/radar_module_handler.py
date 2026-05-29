@@ -1,7 +1,7 @@
 """
 MTRX4701 2026 Assignment 4
 File: radar_module_handler.py
-Author(s): 530 499 451
+Author(s): Jeremy Fox
 
 Manages RD03D mmWave Radar Modules.
 Takes the parsed output from the module and does some
