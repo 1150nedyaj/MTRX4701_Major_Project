@@ -6,23 +6,24 @@ import rclpy
 from rclpy.qos import qos_profile_sensor_data
 from rclpy.node import Node
 
-from PyQt6.QtCore import pyqtSignal,QTimer
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import (QApplication, QMainWindow,
                              QWidget, QVBoxLayout, QLabel,
                              QHBoxLayout, QStackedLayout, QGridLayout,
-                             QPushButton, QGraphicsEllipseItem)
+                             QPushButton)
 
 import pyqtgraph as pg
 from collections import deque
-from PyQt6.QtGui import QPen, QBrush, QColor
 
-from .layout_colorwidget import Color
 
 from nav_msgs.msg import Odometry, Path
 from sensor_msgs.msg import BatteryState, LaserScan
 from geometry_msgs.msg import PoseArray, PoseStamped
  
 from destination_msgs.msg import DestinationListMsg
+
+import tf2_ros
+from tf_transformations import euler_from_quaternion
 
 class DashboardWindow(QMainWindow):
     """
@@ -37,7 +38,7 @@ class DashboardWindow(QMainWindow):
     lidar_received = pyqtSignal(list)
     people_received = pyqtSignal(list)
     people_count_received = pyqtSignal(int)
-    landmark_count_recieved = pyqtSignal(int)
+    landmark_count_received = pyqtSignal(int)
     closest_person_received = pyqtSignal(float)
     closest_landmark_received = pyqtSignal(float)
     destinations_received = pyqtSignal(list)
@@ -57,7 +58,7 @@ class DashboardWindow(QMainWindow):
         self.lidar_received.connect(self.update_lidar_points)
         self.people_received.connect(self.update_people_points)
         self.people_count_received.connect(self.update_people_count)
-        self.landmark_count_recieved.connect(self.update_landmark_count)
+        self.landmark_count_received.connect(self.update_landmark_count)
         self.closest_person_received.connect(self.update_closest_person)
         self.closest_landmark_received.connect(self.update_closest_landmark)
         self.destinations_received.connect(self.update_destinations)
@@ -91,7 +92,7 @@ class DashboardWindow(QMainWindow):
             y_units="m",
         )
 
-        self.graph2, self.chosen_landmark_curve = self.make_line_graph(
+        self.graph2, self.chosen_direct_curve = self.make_line_graph(
             "Distance to Chosen Landmark",
             y_label="Distance",
             y_units="m",
@@ -113,14 +114,10 @@ class DashboardWindow(QMainWindow):
         self.person_x = deque(maxlen=200)
         self.person_y = deque(maxlen=200)
 
-        self.chosen_x = deque(maxlen=200)
-        self.chosen_y = deque(maxlen=200)
-
         self.speed_x = deque(maxlen=200)
         self.speed_y = deque(maxlen=200)
 
         self.person_sample = 0
-        self.chosen_sample = 0
         self.speed_sample = 0
 
         self.chosen_tag = None
@@ -136,19 +133,19 @@ class DashboardWindow(QMainWindow):
         graphbuttonslayout = QGridLayout()
 
         btn = QPushButton("Distance to People")
-        btn.pressed.connect(self.button0)
+        btn.pressed.connect(lambda: self.graphlayout.setCurrentIndex(0))
         graphbuttonslayout.addWidget(btn, 0, 0)
         
         btn = QPushButton("Distance to Landmarks")
-        btn.pressed.connect(self.button1)
+        btn.pressed.connect(lambda: self.graphlayout.setCurrentIndex(1))
         graphbuttonslayout.addWidget(btn, 0, 1)
 
         btn = QPushButton("Distance from Chosen Landmark")
-        btn.pressed.connect(self.button2)
+        btn.pressed.connect(lambda: self.graphlayout.setCurrentIndex(2))
         graphbuttonslayout.addWidget(btn, 1, 0)
 
         btn = QPushButton("Historical Speed")
-        btn.pressed.connect(self.button3)
+        btn.pressed.connect(lambda: self.graphlayout.setCurrentIndex(3))
         graphbuttonslayout.addWidget(btn, 1, 1)
 
         #This combines the buttons and graphs in this section
@@ -162,9 +159,6 @@ class DashboardWindow(QMainWindow):
         positionlayout.addWidget(self.position_graph)
 
         #Command buttons (Bottom Right)
-        buttonslayout = QGridLayout()
-
-                #Command buttons (Bottom Right)
         buttonslayout = QGridLayout()
 
         self.button_a = QPushButton("A")
@@ -282,16 +276,6 @@ class DashboardWindow(QMainWindow):
         graph.showGrid(x=True, y=True)
 
         return graph
-
-    # Graph Select Buttons
-    def button0(self):
-        self.graphlayout.setCurrentIndex(0)
-    def button1(self):
-        self.graphlayout.setCurrentIndex(1)
-    def button2(self):
-        self.graphlayout.setCurrentIndex(2)
-    def button3(self):
-        self.graphlayout.setCurrentIndex(3)
 
     def make_position_graph(self):
         graph = pg.PlotWidget()
@@ -511,6 +495,9 @@ class DashboardNode(Node):
     def __init__(self, window: DashboardWindow):
         super().__init__("people_avoider_dashboard")
 
+        self.tf_buffer = tf2_ros.Buffer()
+        self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
+
         self.window = window
         self.robot_x = 0
         self.robot_y = 0
@@ -588,24 +575,14 @@ class DashboardNode(Node):
         vy = msg.twist.twist.linear.y
         speed = math.sqrt(vx ** 2 + vy ** 2)
 
-        q = msg.pose.pose.orientation
-
-        # Quaternion to yaw
-        siny_cosp = 2.0 * (q.w * q.z + q.x * q.y)
-        cosy_cosp = 1.0 - 2.0 * (q.y ** 2 + q.z ** 2)
-        yaw = math.atan2(siny_cosp, cosy_cosp)
-
-        angle_deg = math.degrees(yaw)
-        self.yaw = yaw
-        self.robot_x = msg.pose.pose.position.x
-        self.robot_y = msg.pose.pose.position.y
-
-        #need for stop button
         self.current_odom_pose = msg.pose.pose
 
         self.window.speed_received.emit(speed)
-        self.window.angle_received.emit(angle_deg)
-        self.convert_global_destinations_to_graph()
+
+        if self.update_robot_pose_from_tf():
+            angle_deg = math.degrees(self.yaw)
+            self.window.angle_received.emit(angle_deg)
+            self.convert_global_destinations_to_graph()
 
     def battery_callback(self, msg):
         self.window.battery_received.emit(msg.percentage)
@@ -667,7 +644,7 @@ class DashboardNode(Node):
             
         self.convert_global_destinations_to_graph()
 
-        self.window.landmark_count_recieved.emit(len(self.destination_poses))
+        self.window.landmark_count_received.emit(len(self.destination_poses))
 
         valid_goals = []
 
@@ -728,7 +705,7 @@ class DashboardNode(Node):
         
     def publish_goal_pose(self, goal_name):
         goal_msg = PoseStamped()
-        goal_msg.header.frame_id = "odom"
+        goal_msg.header.frame_id = "map"
         goal_msg.header.stamp = self.get_clock().now().to_msg()
 
         if goal_name == "STOP":
@@ -793,6 +770,31 @@ class DashboardNode(Node):
             )
 
         return path_distance
+    
+    def update_robot_pose_from_tf(self):
+        try:
+            transform = self.tf_buffer.lookup_transform(
+                "map",
+                "base_link",
+                rclpy.time.Time(),
+            )
+        except Exception:
+            return False
+
+        translation = transform.transform.translation
+        rotation = transform.transform.rotation
+
+        self.robot_x = translation.x
+        self.robot_y = translation.y
+
+        _, _, self.yaw = euler_from_quaternion([
+            rotation.x,
+            rotation.y,
+            rotation.z,
+            rotation.w,
+        ])
+
+        return True
     
 def main():
     rclpy.init()
