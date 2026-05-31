@@ -1,5 +1,12 @@
-# Tortellini Major - Bot Workspace
-This workspace pulls together all the packages that need to run on the turtlebot, coordinating with ```turtlebot3_bringup``` 
+# Experimental Robotics @ USYD<br> Major Project - Tortellini<br>Bot Workspace
+
+Deploying **privacy preserving** modes of **human detection** on the Turtlebot Platform. Performing person tracking with fused **2D LiDAR** and **mmWave radar** data, before incorporating them into a **Nav2** pipeline. Allowing for differentiation between people and static objects while autonomously navigating an environment. 
+
+## System Overview
+![Preview](img/System_Overview.png)
+
+## Pi 5 UART mmWave Radar Expansion HAT
+![Preview](img/UART_Expander_Preview.png)
 
 ## Running 
 Launch Hardware, then Navigation.\
