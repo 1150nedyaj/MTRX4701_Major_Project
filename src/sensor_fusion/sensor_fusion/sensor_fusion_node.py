@@ -41,7 +41,7 @@ from tf2_geometry_msgs import do_transform_point
 
 from geometry_msgs.msg import PoseArray, PointStamped, Pose
 from std_msgs.msg import Header
-from visualization_msgs.msg import MarkerArray, Marker
+from visualization_msgs.msg import MarkerArray
 from sensor_msgs.msg import LaserScan
 
 from radar_messages.msg import StampedRadarDetections
